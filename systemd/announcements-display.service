@@ -1,0 +1,15 @@
+# /etc/systemd/system/announcements-display.service
+#
+# Runs schedule_display.sh once (as a oneshot) when invoked by the timer.
+# The script itself loops forever and handles display ON/OFF polling.
+
+[Unit]
+Description=Announcements: display power scheduler
+
+[Service]
+Type=oneshot
+ExecStart=/srv/announcements/schedule_display.sh
+
+[Install]
+WantedBy=multi-user.target
+

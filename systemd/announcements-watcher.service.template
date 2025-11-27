@@ -1,0 +1,22 @@
+# /etc/systemd/system/announcements-watcher.service
+#
+# Watches the inbox directory for new/changed files and, once the
+# contents have been quiet for QUIET_SECONDS, runs convert_all.sh
+# to rebuild the slide deck atomically.
+
+[Unit]
+Description=Announcements: watch inbox and convert new slides
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+ExecStart=/srv/announcements/watch_inbox.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

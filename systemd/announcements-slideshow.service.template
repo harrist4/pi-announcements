@@ -1,0 +1,21 @@
+# /etc/systemd/system/announcements-slideshow.service
+#
+# Runs the fullscreen pqiv slideshow on the live slides directory.
+# Assumes a graphical session on DISPLAY :0 (e.g. Pi autologin to X).
+
+[Unit]
+Description=Announcements: fullscreen slideshow
+After=graphical.target
+Wants=graphical.target
+
+[Service]
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+Environment=DISPLAY=:0
+ExecStart=/srv/announcements/start_slideshow.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target
+
