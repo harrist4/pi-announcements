@@ -33,12 +33,14 @@ fi
 SERVICE_USER="annc"
 SERVICE_USER_PASS=""
 NONINTERACTIVE=0
+SERVICE_USER_OVERRIDE_FROM_FLAG=0
 
 # Parse flags: --user, --password, --noninteractive
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --user)
       SERVICE_USER="$2"
+      SERVICE_USER_OVERRIDE_FROM_FLAG=1
       shift 2
       ;;
     --password)
@@ -85,8 +87,23 @@ fi
 
 FRAME_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# This system always uses the dedicated service user (default: annc),
-# optionally overridden via --user. OWNER/GROUP match SERVICE_USER.
+# Optional: read overrides from /boot/announcements.conf
+BOOTCFG="/boot/announcements.conf"
+if [[ -f "$BOOTCFG" ]]; then
+  # Expect simple shell-style assignments:
+  #   SMB_USER=annc
+  #   SMB_PASSWORD=somepass
+  # shellcheck source=/boot/announcements.conf
+  source "$BOOTCFG" || true
+  if [[ -n "${SMB_USER:-}" && -z "${SERVICE_USER_OVERRIDE_FROM_FLAG:-}" ]]; then
+    SERVICE_USER="$SMB_USER"
+  fi
+  if [[ -n "${SMB_PASSWORD:-}" && -z "$SERVICE_USER_PASS" ]]; then
+    SERVICE_USER_PASS="$SMB_PASSWORD"
+  fi
+fi
+
+# OWNER/GROUP always match SERVICE_USER
 OWNER="$SERVICE_USER"
 GROUP="$SERVICE_USER"
 
@@ -99,9 +116,17 @@ fi
 
 echo
 
+# --- Password selection logic for SERVICE_USER_PASS ---
+
+# 1) If still empty and no TTY (e.g. Imager first-boot), use a sane default
+if [[ -z "$SERVICE_USER_PASS" && ! -t 0 ]]; then
+  SERVICE_USER_PASS="announcements"
+fi
+
+# 2) If still empty and interactive, prompt unless explicitly noninteractive
 if [[ -z "$SERVICE_USER_PASS" ]]; then
   if [[ "$NONINTERACTIVE" -eq 1 ]]; then
-    echo "ERROR: --noninteractive requires --password <PASS>" >&2
+    echo "ERROR: --noninteractive requires --password <PASS> (or set SMB_PASSWORD in /boot/announcements.conf)" >&2
     exit 1
   fi
   read -s -p "Set password for user '$SERVICE_USER' (used for both system + Samba): " SERVICE_USER_PASS

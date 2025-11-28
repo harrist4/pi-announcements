@@ -75,10 +75,11 @@ Converted slides appear automatically in **announcements_live**.
 - `announcements-watcher.service`  
 - `announcements-slideshow.service`  
 - `announcements-display.service`  
+- `announcements-status.service`
 
 ## Detailed Description
 ### Updating Announcements
-The `announcements-watcher.service` service launches a single script, `watch_inbox.sh`, which runs an infinite loop.
+The `announcements-watcher.service` service launches `watch_inbox.sh`, which runs an infinite loop.
 
 Within that loop:
 * `watch_inbox.sh` checks for fresh files in the inbox, calculating a checksum of the filenames, ignoring any text files.
@@ -93,8 +94,18 @@ Within that loop:
 
 
 ### Scheduling the Display
-The `announcements-display.service` services launches a single script, `schedule_display.sh`, which runs an infinite loop.
+The `announcements-display.service` service launches `schedule_display.sh`, which runs an infinite loop.
+This script views the schedule in the config file and determines if the slide show shoudld be visible.
+A special file is created in 
 
 ### Running the Slide Show
-The `announcements-slideshow.service` services launches a single script, `start_slideshow.sh`, which launches `pqiv` to show slides.
+The `announcements-slideshow.service` service launches `start_slideshow.sh`, which launches `pqiv` to show slides.
 If `pqiv` exits then this service will relaunch, starting a fresh `pqiv` instance.
+
+### Monitoring Status
+The `announcements-status.service` service launchs `status_watcher.sh`, which runs in an infinite loop with a 30 second sleep.
+
+This service checks for subdirectories under `/svc/announcements/tmp` and if there is a scratch directory present its contents are written to a `_STATUS_\<timestamp\>.txt` file in in the same directory as the `_READY.txt` and `_PROCESSING.txt` files appear.
+
+The timestamp is there so Samba cachine doesn't complicate status checks.
+The idea is to allow someone to see how far along the Pi is in the process.
