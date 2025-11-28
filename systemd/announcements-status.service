@@ -1,0 +1,20 @@
+# /etc/systemd/system/announcements-status.service
+#
+# Runs status_watcher.sh continuously to update _STATUS.txt in the inbox.
+# The script itself contains an internal loop (sleep 30).
+# Must run as root so it can read all tmp/staging directories.
+
+[Unit]
+Description=Announcements: status watcher
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/srv/announcements/status_watcher.sh
+Restart=always
+RestartSec=5
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

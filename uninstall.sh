@@ -6,7 +6,7 @@
 #   Cleanly remove the announcements frame system installed by install.sh.
 #
 # Removes:
-#   - systemd units + timer
+#   - systemd units
 #   - /srv/announcements (all contents)
 #   - Samba share definitions (from /etc/samba/conf.d/announcements.conf)
 #   - The dedicated service user (system + Samba), as configured in /etc/announcements-frame/env
@@ -103,19 +103,19 @@ echo "==> Stopping services..."
 systemctl stop announcements-watcher.service 2>/dev/null || true
 systemctl stop announcements-slideshow.service 2>/dev/null || true
 systemctl stop announcements-display.service 2>/dev/null || true
-systemctl stop announcements-display.timer 2>/dev/null || true
+systemctl stop announcements-status.service 2>/dev/null || true
 
 echo "==> Disabling services..."
 systemctl disable announcements-watcher.service 2>/dev/null || true
 systemctl disable announcements-slideshow.service 2>/dev/null || true
 systemctl disable announcements-display.service 2>/dev/null || true
-systemctl disable announcements-display.timer 2>/dev/null || true
+systemctl disable announcements-status.service 2>/dev/null || true
 
 echo "==> Removing systemd unit files..."
 rm -f /etc/systemd/system/announcements-watcher.service
 rm -f /etc/systemd/system/announcements-slideshow.service
 rm -f /etc/systemd/system/announcements-display.service
-rm -f /etc/systemd/system/announcements-display.timer
+rm -f /etc/systemd/system/announcements-status.service
 
 systemctl daemon-reload
 
@@ -135,6 +135,14 @@ if [[ -f "$SMB_ANN_FILE" ]]; then
   sed -i "\|include = $SMB_ANN_FILE|d" "$SMB_MAIN_CONF"
 
   systemctl restart smbd nmbd 2>/dev/null || systemctl restart smbd || true
+fi
+
+# --- sudoers cleanup ----------------------------------------------------------
+      
+SUDOERS_SNIPPET="/etc/sudoers.d/announcements-frame"
+if [[ -f "$SUDOERS_SNIPPET" ]]; then
+  echo "==> Removing sudoers snippet for slideshow restart..."
+  rm -f "$SUDOERS_SNIPPET"
 fi
 
 # --- User cleanup -------------------------------------------------------------

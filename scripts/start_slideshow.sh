@@ -25,7 +25,7 @@ OFF_SLIDES=false
 
 # Defaults
 SLIDE_DURATION=10
-FADE_DURATION=0.7
+FADE_DURATION=0
 SORT_FLAG="-n"   # pqiv -n (natural sort)
 HIDE_INFO="-i"   # pqiv -i (hide info box)
 

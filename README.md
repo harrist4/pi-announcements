@@ -75,5 +75,26 @@ Converted slides appear automatically in **announcements_live**.
 - `announcements-watcher.service`  
 - `announcements-slideshow.service`  
 - `announcements-display.service`  
-- `announcements-display.timer`  
 
+## Detailed Description
+### Updating Announcements
+The `announcements-watcher.service` service launches a single script, `watch_inbox.sh`, which runs an infinite loop.
+
+Within that loop:
+* `watch_inbox.sh` checks for fresh files in the inbox, calculating a checksum of the filenames, ignoring any text files.
+* When a different checksum is calculated, the time is noted.
+* If no relevant files are present the loop continues.
+* If the "last change" time exceeds the QUIET_SECONDS setting then it's time to process the files
+  * Remove the `_READY.txt` file
+  * Create the `_PROCESSING.txt` file with timestamp
+  * Run `convert_all.sh`
+  * Restart the `announcements-slideshow.service` service to pick up the changed slides
+  * Create the `_READY.txt` file with results
+
+
+### Scheduling the Display
+The `announcements-display.service` services launches a single script, `schedule_display.sh`, which runs an infinite loop.
+
+### Running the Slide Show
+The `announcements-slideshow.service` services launches a single script, `start_slideshow.sh`, which launches `pqiv` to show slides.
+If `pqiv` exits then this service will relaunch, starting a fresh `pqiv` instance.

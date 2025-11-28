@@ -33,6 +33,7 @@ CENTER_IMAGES=true
 KEEP_PDFS=true
 
 PPT_EXTENSIONS="pptx"
+PDF_EXTENSIONS="pdf"
 IMAGE_EXTENSIONS="jpg jpeg png"
 MAX_SLIDES=0   # 0 = unlimited
 
@@ -98,6 +99,9 @@ fi
 if val=$(get_conf_value "ppt_extensions" 2>/dev/null); then
   [ -n "$val" ] && PPT_EXTENSIONS="$val"
 fi
+if val=$(get_conf_value "pdf_extensions" 2>/dev/null); then
+  [ -n "$val" ] && PDF_EXTENSIONS="$val"
+fi
 if val=$(get_conf_value "image_extensions" 2>/dev/null); then
   [ -n "$val" ] && IMAGE_EXTENSIONS="$val"
 fi
@@ -127,10 +131,12 @@ groom_image() {
       -background "$BACKGROUND_COLOR" \
       -gravity center \
       -extent "${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}" \
+      -quality 95 \
       "$dst"
   else
     convert "$src" \
       -resize "${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}>" \
+      -quality 95 \
       "$dst"
   fi
 }
@@ -173,9 +179,11 @@ groom_image() {
 
   # Classify files by extension
   declare -a PPTX_FILES=()
+  declare -a PDF_FILES=()
   declare -a IMAGE_FILES=()
 
   IFS=' ,' read -r -a ppt_exts <<<"$PPT_EXTENSIONS"
+  IFS=' ,' read -r -a pdf_exts <<<"$PDF_EXTENSIONS"
   IFS=' ,' read -r -a img_exts <<<"$IMAGE_EXTENSIONS"
 
   is_in_list() {
@@ -193,6 +201,8 @@ groom_image() {
     ext=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
     if is_in_list "$ext" "${ppt_exts[@]}"; then
       PPTX_FILES+=("$f")
+    elif is_in_list "$ext" "${pdf_exts[@]}"; then
+      PDF_FILES+=("$f")
     elif is_in_list "$ext" "${img_exts[@]}"; then
       IMAGE_FILES+=("$f")
     else
@@ -231,6 +241,28 @@ groom_image() {
     echo
   fi
 
+  # --- Raw PDFs from inbox -> staging ---
+  if [ "${#PDF_FILES[@]}" -gt 0 ]; then
+    echo "Copying raw PDFs into staging..."
+    for f in "${PDF_FILES[@]}"; do
+      src_base="$(basename "$f")"
+      src_noext="${src_base%.*}"
+      safe_base="$(sanitize_name "$src_noext")"
+
+      orig_safe="$safe_base"
+      suffix=1
+      while [ -e "$STAGING/${safe_base}.pdf" ]; do
+        printf -v safe_base "%s_%02d" "$orig_safe" "$suffix"
+        suffix=$((suffix+1))
+      done
+
+      echo "  -> $src_base (as ${safe_base}.pdf)"
+      cp "$f" "$STAGING/${safe_base}.pdf"
+    done
+    echo "Raw PDFs copied."
+    echo
+  fi
+
   # --- PDFs -> slide PNGs ---
   declare -i slide_count=0
 
@@ -246,7 +278,11 @@ groom_image() {
       safe_pdf="$(sanitize_name "$pdf_noext")"
 
       tmp_pattern="$STAGING/${safe_pdf}_page_%02d.png"
-      convert -density 150 "$pdf" "$tmp_pattern"
+      gs -sDEVICE=png16m \
+        -dNOPAUSE -dBATCH -dSAFER \
+        -r150 \
+        -sOutputFile="$tmp_pattern" \
+        "$pdf"
 
       mapfile -t pages < <(find "$STAGING" -maxdepth 1 -type f -name "${safe_pdf}_page_*.png" | sort || true)
       idx=1
@@ -339,20 +375,9 @@ groom_image() {
     cp "$BASE/config/inbox_readme.txt" "$INBOX/README.txt"
   fi
 
-  echo "Writing _READY.txt..."
-  echo "Drop folder is now empty." > "$INBOX/_READY.txt"
-  echo "_READY.txt written."
-  echo
-
-  echo "Restarting slideshow service to pick up new deck..."
-  systemctl restart announcements-slideshow.service || echo "Warning: failed to restart slideshow service."
-  echo "Slideshow restart requested."
-  echo
-
   rm -rf "$SNAP" 2>/dev/null || true
 
   echo "Conversion run complete."
   echo
 
 } | tee -a "$LOGFILE"
-

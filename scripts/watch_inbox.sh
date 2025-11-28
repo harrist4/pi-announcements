@@ -77,6 +77,7 @@ last_change=0
 prev_hash=""
 
 while true; do
+  sleep "$POLL_INTERVAL"
   now=$(date +%s)
 
   # Detect any file changes in INBOX (excluding our marker files)
@@ -91,20 +92,17 @@ while true; do
 
   # Skip if currently processing
   if [ -f "$INBOX/_PROCESSING.txt" ]; then
-    sleep "$POLL_INTERVAL"
     continue
   fi
 
   # Nothing to do if inbox is empty
   if ! find "$INBOX" -mindepth 1 -maxdepth 1 \
        ! -name "*.txt" | grep -q .; then
-    sleep "$POLL_INTERVAL"
     continue
   fi
 
   # Not quiet long enough yet
   if (( now - last_change < QUIET_SECONDS )); then
-    sleep "$POLL_INTERVAL"
     continue
   fi
 
@@ -112,9 +110,15 @@ while true; do
 
   rm -f "$INBOX/_READY.txt"
   echo "Processing started at $(date)" > "$INBOX/_PROCESSING.txt"
-  "$SCRIPT" || echo "convert_all.sh failed (see logs)."
+
+  if "$SCRIPT"; then
+    echo "Drop folder processed successfully at $(date)." > "$INBOX/_READY.txt"
+    sudo systemctl restart announcements-slideshow.service \
+      || echo "Warning: failed to restart slideshow service."
+  else
+    echo "ERROR during processing at $(date)." > "$INBOX/_READY.txt"
+    echo "convert_all.sh failed (see logs)." >&2
+  fi
+
   rm -f "$INBOX/_PROCESSING.txt" 2>/dev/null || true
-
-  sleep "$POLL_INTERVAL"
 done
-

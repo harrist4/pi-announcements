@@ -177,6 +177,7 @@ install -m 0755 "$FRAME_DIR/scripts/convert_all.sh"      "$BASE_DIR/convert_all.
 install -m 0755 "$FRAME_DIR/scripts/watch_inbox.sh"      "$BASE_DIR/watch_inbox.sh"
 install -m 0755 "$FRAME_DIR/scripts/start_slideshow.sh"  "$BASE_DIR/start_slideshow.sh"
 install -m 0755 "$FRAME_DIR/scripts/schedule_display.sh" "$BASE_DIR/schedule_display.sh"
+install -m 0755 "$FRAME_DIR/scripts/status_watcher.sh"   "$BASE_DIR/status_watcher.sh"
 
 echo "==> Copying config..."
 install -m 0644 "$FRAME_DIR/config/announcements.conf" "$BASE_DIR/config/announcements.conf"
@@ -203,7 +204,15 @@ mkdir -p /etc/announcements-frame
 echo "SERVICE_USER=$SERVICE_USER" > /etc/announcements-frame/env
 echo "ORIGINAL_GUI_USER=${SUDO_USER:-}" >> /etc/announcements-frame/env
 
-echo "==> Installing systemd units..."
+echo "==> Configuring sudoers for slideshow restart..."
+SUDOERS_SNIPPET="/etc/sudoers.d/announcements-frame"
+SYSTEMCTL_BIN="$(command -v systemctl || echo /usr/bin/systemctl)"
+
+cat > "$SUDOERS_SNIPPET" <<EOF
+$SERVICE_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN restart announcements-slideshow.service
+EOF
+chmod 440 "$SUDOERS_SNIPPET"
+
 echo "==> Installing systemd units..."
 export SERVICE_USER
 
@@ -214,7 +223,7 @@ envsubst < "$FRAME_DIR/systemd/announcements-slideshow.service.template" \
   > /etc/systemd/system/announcements-slideshow.service
 
 install -m 0644 "$FRAME_DIR/systemd/announcements-display.service" /etc/systemd/system/
-install -m 0644 "$FRAME_DIR/systemd/announcements-display.timer"   /etc/systemd/system/
+install -m 0644 "$FRAME_DIR/systemd/announcements-status.service"  /etc/systemd/system/
 
 echo "==> Reloading systemd..."
 systemctl daemon-reload
@@ -222,12 +231,14 @@ systemctl daemon-reload
 echo "==> Enabling services..."
 systemctl enable announcements-watcher.service
 systemctl enable announcements-slideshow.service
-systemctl enable announcements-display.timer
+systemctl enable announcements-display.service
+systemctl enable announcements-status.service
 
 echo "==> Starting services..."
 systemctl start announcements-watcher.service
 systemctl start announcements-slideshow.service
-systemctl start announcements-display.timer
+systemctl start announcements-display.service
+systemctl start announcements-status.service
 
 echo "==> Setting Samba password..."
 echo -e "$SERVICE_USER_PASS\n$SERVICE_USER_PASS" | smbpasswd -a -s "$SERVICE_USER"
@@ -242,24 +253,28 @@ mkdir -p "$SMB_D_DIR"
 
 cat > "$SMB_ANN_FILE" <<EOF
 [announcements_inbox]
-   path = $BASE_DIR/inbox
-   browseable = yes
-   read only = no
-   valid users = $SERVICE_USER
-   create mask = 0664
-   directory mask = 0775
-   veto files = /._*/.DS_Store/.Trash*/.Spotlight-V100/.fseventsd/
-   delete veto files = yes
+  path = $BASE_DIR/inbox
+  browseable = yes
+  read only = no
+  valid users = $SERVICE_USER
+  create mask = 0664
+  directory mask = 0775
+  veto files = /._*/.DS_Store/.Trash*/.Spotlight-V100/.fseventsd/
+  delete veto files = yes
+  strict sync = yes
+  sync always = yes
 
 [announcements_live]
-   path = $BASE_DIR/live
-   browseable = yes
-   read only = no
-   valid users = $SERVICE_USER
-   create mask = 0664
-   directory mask = 0775
-   veto files = /._*/.DS_Store/.Trash*/.Spotlight-V100/.fseventsd/
-   delete veto files = yes
+  path = $BASE_DIR/live
+  browseable = yes
+  read only = no
+  valid users = $SERVICE_USER
+  create mask = 0664
+  directory mask = 0775
+  veto files = /._*/.DS_Store/.Trash*/.Spotlight-V100/.fseventsd/
+  delete veto files = yes
+  strict sync = yes
+  sync always = yes
 EOF
 
 # Ensure main smb.conf includes our file (no wildcards; Samba doesn't expand them here)
