@@ -23,3 +23,5 @@ echo "==> Running install.sh non-interactively..."
 ./install.sh --noninteractive
 
 echo "==> First-boot install complete."
+
+systemctl reboot
