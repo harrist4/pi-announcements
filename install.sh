@@ -118,19 +118,15 @@ echo
 
 # --- Password selection logic for SERVICE_USER_PASS ---
 
-# 1) If still empty and no TTY (e.g. Imager first-boot), use a sane default
-if [[ -z "$SERVICE_USER_PASS" && ! -t 0 ]]; then
-  SERVICE_USER_PASS="announcements"
-fi
-
-# 2) If still empty and interactive, prompt unless explicitly noninteractive
 if [[ -z "$SERVICE_USER_PASS" ]]; then
   if [[ "$NONINTERACTIVE" -eq 1 ]]; then
-    echo "ERROR: --noninteractive requires --password <PASS> (or set SMB_PASSWORD in /boot/announcements.conf)" >&2
-    exit 1
+    # Noninteractive mode: fall back to a sane default
+    SERVICE_USER_PASS="announcements"
+  else
+    # Interactive mode: prompt the user
+    read -s -p "Set password for user '$SERVICE_USER' (used for both system + Samba): " SERVICE_USER_PASS
+    echo
   fi
-  read -s -p "Set password for user '$SERVICE_USER' (used for both system + Samba): " SERVICE_USER_PASS
-  echo
 fi
 
 if [[ -z "$SERVICE_USER_PASS" ]]; then
