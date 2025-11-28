@@ -33,7 +33,7 @@ A lightweight Raspberry Pi system that converts PowerPoint slides into images an
 /srv/announcements
     inbox/
     live/
-    off_schedule/
+    off/
     config/
     logs/
     tmp/

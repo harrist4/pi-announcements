@@ -156,7 +156,7 @@ apt-get install -y \
   samba
 
 echo "==> Creating directory structure..."
-mkdir -p "$BASE_DIR"/{inbox,live,off_schedule,config,logs,tmp}
+mkdir -p "$BASE_DIR"/{inbox,live,off,config,logs,tmp}
 chown -R "$OWNER:$GROUP" "$BASE_DIR"
 
 echo "==> Creating initial 'installation complete' slide..."
@@ -193,10 +193,10 @@ echo "Drop folder is ready for new content." > "$BASE_DIR/inbox/_READY.txt"
 chown "$OWNER:$GROUP" "$BASE_DIR/inbox/_READY.txt"
 
 echo "==> Seeding off-schedule black slide..."
-if [ ! -f "$BASE_DIR/off_schedule/black.png" ]; then
-  convert -size 1920x1080 xc:black "$BASE_DIR/off_schedule/black.png" || true
+if [ ! -f "$BASE_DIR/off/black.png" ]; then
+  convert -size 1920x1080 xc:black "$BASE_DIR/off/black.png" || true
 fi
-chown -R "$OWNER:$GROUP" "$BASE_DIR/off_schedule"
+chown -R "$OWNER:$GROUP" "$BASE_DIR/off"
 
 echo "==> Writing service configuration..."
 mkdir -p /etc/announcements-frame

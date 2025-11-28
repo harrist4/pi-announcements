@@ -4,13 +4,14 @@
 #
 # Purpose:
 #   - Periodically check announcements.conf schedule.
-#   - Turn display ON/OFF (HDMI/backlight) and select slide deck.
+#   - Toggles display using either one of:
+#     - the HDMI backlight
+#     - a black slide
 #
 # Config (announcements.conf):
 #   - schedule_poll_interval
 #   - mon..sun time ranges
 #   - hdmi_control        (true/false)
-#   - off_schedule_slides (true/false)
 
 set -euo pipefail
 
@@ -23,13 +24,24 @@ MODE_FILE="/tmp/announcements_slides_mode"  # "normal" | "off" | "none"
 
 CHECK_INTERVAL=60
 HDMI_CONTROL=true
-OFF_SLIDES=false
+
+get_conf_value() {
+  local key="$1"
+  [ -f "$CONFIG" ] || return 1
+  local line val
+  line=$(grep -i "^${key}[[:space:]]*=" "$CONFIG" | tail -n1 || true)
+  [ -n "$line" ] || return 1
+  val="${line#*=}"
+  val="${val%%#*}"  # strip inline comments
+  val="${val#"${val%%[![:space:]]*}"}"
+  val="${val%"${val##*[![:space:]]}"}"
+  printf '%s\n' "$val"
+}
 
 reload_config() {
   # reset to defaults first
   CHECK_INTERVAL=60
   HDMI_CONTROL=true
-  OFF_SLIDES=false
 
   # schedule_poll_interval
   if val=$(get_conf_value "schedule_poll_interval" 2>/dev/null); then
@@ -44,39 +56,7 @@ reload_config() {
       false|no|0)  HDMI_CONTROL=false ;;
     esac
   fi
-
-  # off_schedule_slides
-  if val=$(get_conf_value "off_schedule_slides" 2>/dev/null); then
-    val=$(echo "$val" | tr '[:upper:]' '[:lower:]')
-    case "$val" in
-      true|yes|1)  OFF_SLIDES=true ;;
-      false|no|0)  OFF_SLIDES=false ;;
-    esac
-  fi
 }
-
-# schedule_poll_interval
-if val=$(get_conf_value "schedule_poll_interval" 2>/dev/null); then
-  [[ "$val" =~ ^[0-9]+$ ]] && CHECK_INTERVAL="$val"
-fi
-
-# hdmi_control
-if val=$(get_conf_value "hdmi_control" 2>/dev/null); then
-  val=$(echo "$val" | tr '[:upper:]' '[:lower:]')
-  case "$val" in
-    true|yes|1)  HDMI_CONTROL=true ;;
-    false|no|0)  HDMI_CONTROL=false ;;
-  esac
-fi
-
-# off_schedule_slides
-if val=$(get_conf_value "off_schedule_slides" 2>/dev/null); then
-  val=$(echo "$val" | tr '[:upper:]' '[:lower:]')
-  case "$val" in
-    true|yes|1)  OFF_SLIDES=true ;;
-    false|no|0)  OFF_SLIDES=false ;;
-  esac
-fi
 
 day_key_for_today() {
   case "$(date +%u)" in
@@ -146,7 +126,9 @@ should_be_on() {
       local start_m end_m
       start_m=$(time_to_minutes "$start" 2>/dev/null || echo "")
       end_m=$(time_to_minutes "$end" 2>/dev/null || echo "")
-      [ -z "$start_m" ] || [ -z "$end_m" ] && continue
+      if [ -z "$start_m" ] || [ -z "$end_m" ]; then
+        continue
+      fi
 
       if (( now_hm >= start_m && now_hm < end_m )); then
         return 0
@@ -170,12 +152,14 @@ set_display() {
     return 0
   fi
 
-  if $HDMI_CONTROL; then
-    if [ "$desired" = "on" ]; then
-      [ -w "$BACKLIGHT" ] && echo 0 > "$BACKLIGHT" 2>/dev/null || true
-      [ -w "$HDMI_STATUS" ] && echo on  > "$HDMI_STATUS" 2>/dev/null || true
-    else
-      [ -w "$BACKLIGHT" ] && echo 1 > "$BACKLIGHT" 2>/dev/null || true
+  if [ "$desired" = "on" ]; then
+    # Always allowed to turn things ON
+    [ -w "$BACKLIGHT" ] && echo 0  > "$BACKLIGHT" 2>/dev/null || true
+    [ -w "$HDMI_STATUS" ] && echo on > "$HDMI_STATUS" 2>/dev/null || true
+  else
+    # Only allowed to turn things OFF if hdmi_control=true
+    if $HDMI_CONTROL; then
+      [ -w "$BACKLIGHT" ] && echo 1   > "$BACKLIGHT" 2>/dev/null || true
       [ -w "$HDMI_STATUS" ] && echo off > "$HDMI_STATUS" 2>/dev/null || true
     fi
   fi
@@ -197,10 +181,8 @@ set_slides_mode() {
 
   echo "$desired" > "$MODE_FILE"
 
-  # Only matters if off-schedule slides are enabled
-  if $OFF_SLIDES; then
-    systemctl restart announcements-slideshow.service 2>/dev/null || true
-  fi
+  # Slideshow always reacts to mode changes
+  systemctl restart announcements-slideshow.service 2>/dev/null || true
 }
 
 reload_config
@@ -209,17 +191,24 @@ while true; do
   reload_config
 
   if should_be_on; then
+    # On schedule: always normal slides, HDMI "on"
     set_slides_mode "normal"
     set_display "on"
   else
-    if $OFF_SLIDES; then
-      set_slides_mode "off"
-    else
+    if $HDMI_CONTROL; then
+      # Off schedule + HDMI control enabled:
+      #   - stop showing slides (none)
+      #   - actually turn HDMI OFF
       set_slides_mode "none"
+      set_display "off"
+    else
+      # Off schedule + HDMI control disabled:
+      #   - keep HDMI ON (TV stays happy)
+      #   - switch slideshow to "off" (blank/off-schedule deck)
+      set_slides_mode "off"
+      set_display "on"
     fi
-    set_display "off"
   fi
 
   sleep "$CHECK_INTERVAL"
 done
-

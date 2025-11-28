@@ -8,8 +8,7 @@
 #
 # Configuration (announcements.conf):
 #   - live_dir
-#   - off_schedule_dir
-#   - off_schedule_slides
+#   - off_dir
 #   - slide_duration
 #   - fade_duration
 #   - slideshow_sort
@@ -20,8 +19,7 @@ set -euo pipefail
 CONFIG="/srv/announcements/config/announcements.conf"
 
 MAIN_DIR="/srv/announcements/live"
-OFF_DIR="/srv/announcements/off_schedule"
-OFF_SLIDES=false
+OFF_DIR="/srv/announcements/off"
 
 # Defaults
 SLIDE_DURATION=10
@@ -29,7 +27,7 @@ FADE_DURATION=0
 SORT_FLAG="-n"   # pqiv -n (natural sort)
 HIDE_INFO="-i"   # pqiv -i (hide info box)
 
-MODE_FILE="/tmp/announcements_slides_mode"  # "normal" | "off" | empty
+MODE_FILE="/tmp/announcements_slides_mode"  # "normal" | "off" | "none"
 
 get_conf_value() {
   local key="$1"
@@ -48,17 +46,8 @@ get_conf_value() {
 if val=$(get_conf_value "live_dir" 2>/dev/null); then
   [ -n "$val" ] && MAIN_DIR="$val"
 fi
-if val=$(get_conf_value "off_schedule_dir" 2>/dev/null); then
+if val=$(get_conf_value "off_dir" 2>/dev/null); then
   [ -n "$val" ] && OFF_DIR="$val"
-fi
-
-# Flags
-if val=$(get_conf_value "off_schedule_slides" 2>/dev/null); then
-  val=$(echo "$val" | tr '[:upper:]' '[:lower:]')
-  case "$val" in
-    true|yes|1)  OFF_SLIDES=true ;;
-    false|no|0)  OFF_SLIDES=false ;;
-  esac
 fi
 
 # slide_duration (integer seconds)
@@ -89,14 +78,25 @@ if val=$(get_conf_value "slideshow_hide_info" 2>/dev/null); then
   esac
 fi
 
-# Decide which deck to show
-DIR="$MAIN_DIR"
-if $OFF_SLIDES && [ -f "$MODE_FILE" ]; then
-  mode=$(cat "$MODE_FILE" 2>/dev/null || echo "")
-  if [ "$mode" = "off" ]; then
-    DIR="$OFF_DIR"
-  fi
+# Decide which deck to show from MODE_FILE only
+mode="normal"
+if [ -f "$MODE_FILE" ]; then
+  mode=$(cat "$MODE_FILE" 2>/dev/null || echo "normal")
 fi
+
+case "$mode" in
+  off)
+    DIR="$OFF_DIR"
+    ;;
+  none)
+    # No slideshow at all
+    exit 0
+    ;;
+  *)
+    # normal or anything unknown -> main deck
+    DIR="$MAIN_DIR"
+    ;;
+esac
 
 ARGS=(/usr/bin/pqiv -f -s -d "$SLIDE_DURATION" -F -t)
 
@@ -106,4 +106,3 @@ ARGS=(/usr/bin/pqiv -f -s -d "$SLIDE_DURATION" -F -t)
 ARGS+=(--fade-duration="$FADE_DURATION" "$DIR")
 
 exec "${ARGS[@]}"
-
