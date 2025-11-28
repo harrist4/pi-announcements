@@ -1,26 +1,35 @@
 # Raspberry Pi Announcements Frame
 
-A lightweight Raspberry Pi system that converts PowerPoint slides into images and displays them full-screen on a schedule. Designed for church foyers, hall displays, and always‑on announcement screens.
+A lightweight Raspberry Pi system that converts PowerPoint slides into images and displays them full-screen on a schedule. Designed for church foyers, hallway displays, and any always-on announcement screen.
 
 ## Features
-- Watches an upload folder for new PPTX files
-- Converts PPTX → PDF → PNG via LibreOffice + ImageMagick
-- Runs a fullscreen slideshow using pqiv
-- Optional “off‑schedule” slides
-- Automatic display power control via systemd timer
+- Watches an upload folder for new PPTX files  
+- Converts PPTX → PDF → PNG via LibreOffice + ImageMagick  
+- Runs a fullscreen slideshow using **pqiv**  
+- Optional off-schedule slide deck  
+- Automatic display power control via systemd timer  
 - Two Samba shares:
-  - announcements_inbox (upload PPTX)
-  - announcements_live (converted slides)
-- Dedicated service user for isolation
-- Install/uninstall scripts are idempotent
+  - **announcements_inbox** (upload PPTX/images)
+  - **announcements_live** (converted slides)
+- Dedicated service user for isolation  
+- Install/uninstall scripts are idempotent  
+- Prepopulated “installation complete” slide to confirm the system is working
+
+## Important Notes
+- The system is preconfigured to show slides **all day, every day**.  
+  To change this behavior, edit the scheduler settings in:  
+  `/srv/announcements/config/announcements.conf`
+- The Raspberry Pi desktop must auto-login as the **service user** created during installation.  
+  A **reboot is required after install** for the slideshow to function.  
+  A reboot is also required after uninstall to restore the original GUI user.
 
 ## Requirements
-- Raspberry Pi OS Desktop (not Lite)
-- Raspberry Pi 3 or 4
-- Network access (for Samba shares)
+- Raspberry Pi OS **Desktop** (not Lite)  
+- Raspberry Pi 3 or 4  
+- Network access for Samba file shares  
 
 ## Directory Layout
-Installed under:
+```
 /srv/announcements
     inbox/
     live/
@@ -28,32 +37,43 @@ Installed under:
     config/
     logs/
     tmp/
+```
 
-Service configuration:
+Service environment:
+```
 /etc/announcements-frame/env
+```
 
 Samba configuration:
+```
 /etc/samba/conf.d/announcements.conf
+```
 
 ## Installation
 Run as root:
-    sudo ./install.sh
+```
+sudo ./install.sh
+```
 
 Optional flags:
-    --user NAME         Service user (default: annc)
-    --password PASS     Password for system + Samba
-    --noninteractive    No prompts (requires --password)
+```
+--user NAME         Create/use a specific service user (default: annc)
+--password PASS     Password for system + Samba user
+--noninteractive    No prompts (requires --password)
+```
 
-## Uninstall
-    sudo ./uninstall.sh
+## Uninstallation
+```
+sudo ./uninstall.sh
+```
 
 ## Uploading Slides
-Drop .pptx files into the announcements_inbox share.
-Converted slides appear in announcements_live.
+Place `.pptx` files or supported images into the **announcements_inbox** share.  
+Converted slides appear automatically in **announcements_live**.
 
-## Services
-- announcements-watcher.service
-- announcements-slideshow.service
-- announcements-display.service
-- announcements-display.timer
+## Services Installed
+- `announcements-watcher.service`  
+- `announcements-slideshow.service`  
+- `announcements-display.service`  
+- `announcements-display.timer`  
 

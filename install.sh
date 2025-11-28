@@ -115,6 +115,33 @@ fi
 
 echo "$SERVICE_USER:$SERVICE_USER_PASS" | chpasswd
 
+echo "==> Configuring desktop auto-login for '$SERVICE_USER'..."
+
+LIGHTDM_CONF="/etc/lightdm/lightdm.conf"
+
+if [[ -f "$LIGHTDM_CONF" ]]; then
+  if grep -q '^autologin-user=' "$LIGHTDM_CONF"; then
+    # Replace existing autologin-user line
+    sed -i "s/^autologin-user=.*/autologin-user=$SERVICE_USER/" "$LIGHTDM_CONF"
+  else
+    # Insert under [Seat:*] if present, otherwise append at end
+    if grep -q '^\[Seat:\*\]' "$LIGHTDM_CONF"; then
+      awk '
+        /^\[Seat:\*\]/ {
+          print
+          print "autologin-user='"$SERVICE_USER"'"
+          next
+        }
+        { print }
+      ' "$LIGHTDM_CONF" > "${LIGHTDM_CONF}.tmp" && mv "${LIGHTDM_CONF}.tmp" "$LIGHTDM_CONF"
+    else
+      printf '\n[Seat:*]\nautologin-user=%s\n' "$SERVICE_USER" >> "$LIGHTDM_CONF"
+    fi
+  fi
+else
+  echo "NOTE: $LIGHTDM_CONF not found; please configure desktop auto-login for '$SERVICE_USER' manually."
+fi
+
 echo "Using user: $OWNER"
 echo "Base dir:   $BASE_DIR"
 
@@ -131,6 +158,19 @@ apt-get install -y \
 echo "==> Creating directory structure..."
 mkdir -p "$BASE_DIR"/{inbox,live,off_schedule,config,logs,tmp}
 chown -R "$OWNER:$GROUP" "$BASE_DIR"
+
+echo "==> Creating initial 'installation complete' slide..."
+INSTALL_SLIDE="$BASE_DIR/live/installation_complete.png"
+if [ ! -f "$INSTALL_SLIDE" ]; then
+  convert -size 1920x1080 \
+    -background black \
+    -fill white \
+    -gravity center \
+    -pointsize 44 \
+    caption:"Announcements frame installation complete.\n\nAdd some slides to the inbox share to get started." \
+    "$INSTALL_SLIDE" || true
+  chown "$OWNER:$GROUP" "$INSTALL_SLIDE"
+fi
 
 echo "==> Copying scripts..."
 install -m 0755 "$FRAME_DIR/scripts/convert_all.sh"      "$BASE_DIR/convert_all.sh"
@@ -159,7 +199,9 @@ chown -R "$OWNER:$GROUP" "$BASE_DIR/off_schedule"
 
 echo "==> Writing service configuration..."
 mkdir -p /etc/announcements-frame
+# Record service user and the original GUI user so uninstall can restore autologin
 echo "SERVICE_USER=$SERVICE_USER" > /etc/announcements-frame/env
+echo "ORIGINAL_GUI_USER=${SUDO_USER:-}" >> /etc/announcements-frame/env
 
 echo "==> Installing systemd units..."
 echo "==> Installing systemd units..."
@@ -181,42 +223,6 @@ echo "==> Enabling services..."
 systemctl enable announcements-watcher.service
 systemctl enable announcements-slideshow.service
 systemctl enable announcements-display.timer
-
-echo "==> Configuring X access for slideshow user..."
-
-GUI_USER="${SUDO_USER:-}"
-
-if [[ -n "$GUI_USER" ]]; then
-  # Try to authorize the service user for the current X session on :0
-  if command -v xhost >/dev/null 2>&1; then
-    if sudo -u "$GUI_USER" DISPLAY=:0 xhost +SI:localuser:"$SERVICE_USER" >/dev/null 2>&1; then
-      echo "Authorized '$SERVICE_USER' to use the X display for desktop user '$GUI_USER' (current session)."
-    else
-      echo "NOTE: Could not automatically authorize X access for '$SERVICE_USER'."
-      echo "      After logging into the desktop as '$GUI_USER', run:"
-      echo "        xhost +SI:localuser:$SERVICE_USER"
-    fi
-  else
-    echo "NOTE: 'xhost' not found; cannot configure X access automatically."
-  fi
-
-  # Try to add a persistent xhost entry to the GUI user's LXDE autostart
-  GUI_HOME="$(getent passwd "$GUI_USER" | cut -d: -f6 || true)"
-  if [[ -n "$GUI_HOME" ]]; then
-    AUTOSTART_DIR="$GUI_HOME/.config/lxsession/LXDE-pi"
-    AUTOSTART_FILE="$AUTOSTART_DIR/autostart"
-    mkdir -p "$AUTOSTART_DIR"
-    if ! grep -q "xhost +SI:localuser:$SERVICE_USER" "$AUTOSTART_FILE" 2>/dev/null; then
-      echo "@xhost +SI:localuser:$SERVICE_USER" >> "$AUTOSTART_FILE"
-      chown "$GUI_USER:$GUI_USER" "$AUTOSTART_FILE"
-      echo "Added X authorization helper to $AUTOSTART_FILE"
-    fi
-  fi
-else
-  echo "NOTE: SUDO_USER is empty; cannot auto-configure X access."
-  echo "      After logging into the Pi desktop, run:"
-  echo "        xhost +SI:localuser:$SERVICE_USER"
-fi
 
 echo "==> Starting services..."
 systemctl start announcements-watcher.service
@@ -268,9 +274,10 @@ systemctl restart smbd nmbd 2>/dev/null || systemctl restart smbd || true
 
 echo
 echo "Install complete."
-echo "- Drop .pptx files into $BASE_DIR/inbox (Samba share: announcements_inbox)"
-echo "- Converted slides appear in $BASE_DIR/live (Samba share: announcements_live)"
-echo "- Slideshow runs via pqiv on DISPLAY :0"
-echo "- Display power controlled by announcements-display.timer"
+echo "- Drop .pptx files into $BASE_DIR/inbox (Samba: announcements_inbox)"
+echo "- Converted slides appear in $BASE_DIR/live (Samba: announcements_live)"
+echo "- Slideshow + scheduler systemd units installed"
 echo "- Service user: $SERVICE_USER"
-
+echo
+echo "NOTE: A reboot is required."
+echo "After reboot, the Pi will auto-login as '$SERVICE_USER' for the slideshow to function."

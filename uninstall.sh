@@ -64,6 +64,41 @@ else
   SERVICE_USER="annc"
 fi
 
+# --- Desktop auto-login restore/cleanup --------------------------------------
+
+LIGHTDM_CONF="/etc/lightdm/lightdm.conf"
+OLD_AUTOCONF="/etc/lightdm/lightdm.conf.d/99-autologin.conf"
+
+# Remove old conf.d autologin file if we ever created one
+rm -f "$OLD_AUTOCONF" 2>/dev/null || true
+
+if [[ -f "$LIGHTDM_CONF" ]]; then
+  if [[ -n "${ORIGINAL_GUI_USER:-}" ]]; then
+    echo "==> Restoring desktop autologin to '$ORIGINAL_GUI_USER'..."
+    if grep -q '^autologin-user=' "$LIGHTDM_CONF"; then
+      # Replace existing autologin-user line
+      sed -i "s/^autologin-user=.*/autologin-user=$ORIGINAL_GUI_USER/" "$LIGHTDM_CONF"
+    else
+      # Insert under [Seat:*] if present, otherwise append at end
+      if grep -q '^\[Seat:\*\]' "$LIGHTDM_CONF"; then
+        awk '
+          /^\[Seat:\*\]/ {
+            print
+            print "autologin-user='"$ORIGINAL_GUI_USER"'"
+            next
+          }
+          { print }
+        ' "$LIGHTDM_CONF" > "${LIGHTDM_CONF}.tmp" && mv "${LIGHTDM_CONF}.tmp" "$LIGHTDM_CONF"
+      else
+        printf "\n[Seat:*]\nautologin-user=%s\n" "$ORIGINAL_GUI_USER" >> "$LIGHTDM_CONF"
+      fi
+    fi
+  else
+    echo "==> No ORIGINAL_GUI_USER recorded; removing autologin for '$SERVICE_USER' (if present)..."
+    sed -i "\|^autologin-user=$SERVICE_USER$|d" "$LIGHTDM_CONF"
+  fi
+fi
+
 echo "==> Stopping services..."
 systemctl stop announcements-watcher.service 2>/dev/null || true
 systemctl stop announcements-slideshow.service 2>/dev/null || true
@@ -118,5 +153,8 @@ rm -rf /etc/announcements-frame 2>/dev/null || true
 
 echo
 echo "Uninstall complete."
+echo
+echo "After reboot, the Pi will auto-login as '$ORIGINAL_GUI_USER' as was the original setup."
+echo
 echo "Reinstall with: sudo ./install.sh"
 
