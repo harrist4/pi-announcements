@@ -106,7 +106,7 @@ if [[ -z "$SERVICE_USER_PASS" ]]; then
     SERVICE_USER_PASS="changeme"
   else
     # Interactive mode: prompt the user
-    read -s -p "Set password for user '$SERVICE_USER' (used for both system + Samba): " SERVICE_USER_PASS
+    read -s -p "Set password for user '$SERVICE_USER' (used for both system + Samba): " SERVICE_USER_PASS < /dev/tty
     echo
   fi
 fi
