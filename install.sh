@@ -33,14 +33,12 @@ fi
 SERVICE_USER="annc"
 SERVICE_USER_PASS=""
 NONINTERACTIVE=0
-SERVICE_USER_OVERRIDE_FROM_FLAG=0
 
 # Parse flags: --user, --password, --noninteractive
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --user)
       SERVICE_USER="$2"
-      SERVICE_USER_OVERRIDE_FROM_FLAG=1
       shift 2
       ;;
     --password)
@@ -87,28 +85,6 @@ fi
 
 FRAME_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Optional: read overrides from /boot/announcements.conf
-BOOTCFG=""
-if [[ -f /boot/announcements.conf ]]; then
-  BOOTCFG="/boot/announcements.conf"
-elif [[ -f /boot/firmware/announcements.conf ]]; then
-  BOOTCFG="/boot/firmware/announcements.conf"
-fi
-
-if [[ -f "$BOOTCFG" ]]; then
-  # Expect simple shell-style assignments:
-  #   SMB_USER=annc
-  #   SMB_PASSWORD=somepass
-  # shellcheck source=/boot/announcements.conf
-  source "$BOOTCFG" || true
-  if [[ -n "${SMB_USER:-}" && -z "${SERVICE_USER_OVERRIDE_FROM_FLAG:-}" ]]; then
-    SERVICE_USER="$SMB_USER"
-  fi
-  if [[ -n "${SMB_PASSWORD:-}" && -z "$SERVICE_USER_PASS" ]]; then
-    SERVICE_USER_PASS="$SMB_PASSWORD"
-  fi
-fi
-
 # OWNER/GROUP always match SERVICE_USER
 OWNER="$SERVICE_USER"
 GROUP="$SERVICE_USER"
@@ -127,7 +103,7 @@ echo
 if [[ -z "$SERVICE_USER_PASS" ]]; then
   if [[ "$NONINTERACTIVE" -eq 1 ]]; then
     # Noninteractive mode: fall back to a sane default
-    SERVICE_USER_PASS="announcements"
+    SERVICE_USER_PASS="changeme"
   else
     # Interactive mode: prompt the user
     read -s -p "Set password for user '$SERVICE_USER' (used for both system + Samba): " SERVICE_USER_PASS
