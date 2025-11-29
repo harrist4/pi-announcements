@@ -57,6 +57,11 @@ if [[ "$FORCE" -ne 1 ]]; then
   fi
 fi
 
+# /etc/announcements-frame/env is written by install.sh and usually contains:
+#   SERVICE_USER=<service user name>
+#   ORIGINAL_GUI_USER=<desktop user before we changed autologin>
+# If missing, we fall back to the default service user "annc".
+
 # Load configured user
 if [[ -f /etc/announcements-frame/env ]]; then
   source /etc/announcements-frame/env
@@ -138,7 +143,8 @@ if [[ -f "$SMB_ANN_FILE" ]]; then
 fi
 
 # --- sudoers cleanup ----------------------------------------------------------
-      
+
+# Remove the sudoers rule that allowed the service user to restart the slideshow.      
 SUDOERS_SNIPPET="/etc/sudoers.d/announcements-frame"
 if [[ -f "$SUDOERS_SNIPPET" ]]; then
   echo "==> Removing sudoers snippet for slideshow restart..."
@@ -162,7 +168,13 @@ rm -rf /etc/announcements-frame 2>/dev/null || true
 echo
 echo "Uninstall complete."
 echo
-echo "After reboot, the Pi will auto-login as '$ORIGINAL_GUI_USER' as was the original setup."
+
+if [[ -n "${ORIGINAL_GUI_USER:-}" ]]; then
+  echo "After reboot, the Pi will auto-login as '$ORIGINAL_GUI_USER' (original setup)."
+else
+  echo "After reboot, desktop autologin has been cleaned up for '$SERVICE_USER'."
+  echo "You may need to reconfigure autologin manually for your preferred user."
+fi
+
 echo
 echo "Reinstall with: sudo ./install.sh"
-

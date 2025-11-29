@@ -47,6 +47,7 @@ Samba configuration:
 ```
 /etc/samba/conf.d/announcements.conf
 ```
+
 ## Installation (one-liner)
 On a fresh Raspberry Pi OS **Desktop**, open a terminal and run:
 ```bash
@@ -114,10 +115,9 @@ Within that loop:
   * Restart the `announcements-slideshow.service` service to pick up the changed slides
   * Create the `_READY.txt` file with results
 
-
 ### Scheduling the Display
 The `announcements-display.service` service launches `announcements-display.sh`, which runs an infinite loop.
-This script views the schedule in the config file and determines if the slide show shoudld be visible.
+This script views the schedule in the config file and determines if the slide show should be visible.
 Two state files are used:
 
 `/tmp/announcements_display_state` is of questionable value, intended to prevent HDMI on/off spamming, but there should be a better way.
@@ -131,9 +131,8 @@ This service refers to the `/tmp/announcements_slides_mode` to determine whether
 If `pqiv` exits then this service will relaunch, starting a fresh `pqiv` instance.
 
 ### Monitoring Status
-The `announcements-status.service` service launchs `announcements-status.sh`, which runs in an infinite loop with a 30 second sleep.
+The `announcements-status.service` service launches `announcements-status.sh`, which runs in an infinite loop with a 30‑second sleep.
 
-This service checks for subdirectories under `/srv/announcements/tmp` and if there is a scratch directory present its contents are written to a `_STATUS_\<timestamp\>.txt` file in in the same directory as the `_READY.txt` and `_PROCESSING.txt` files appear.
+This service checks for subdirectories under `/srv/announcements/tmp` and if there is a scratch directory present its contents are written to a `_STATUS_<timestamp>.txt` file in the inbox (next to `_READY.txt` and `_PROCESSING.txt`).
 
-The timestamp is there so Samba cachine doesn't complicate status checks.
-The idea is to allow someone to see how far along the Pi is in the process.
+The timestamp avoids Samba caching confusion and allows someone to check progress.

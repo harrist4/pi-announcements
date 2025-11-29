@@ -3,15 +3,23 @@
 # announcements-watcher.sh
 #
 # Purpose:
-#   - Monitor the inbox directory for changes.
-#   - Wait until files are "quiet" for QUIET_SECONDS.
-#   - Run convert_all.sh once per quiet period.
+#   Long-running watcher for the announcements "inbox" directory.
+#   - Detects when files in the inbox change (new/updated/removed).
+#   - Waits until the inbox has been quiet for QUIET_SECONDS.
+#   - Runs convert_all.sh once per quiet period to rebuild slides.
 #
 # Configuration:
-#   - Reads /srv/announcements/config/announcements.conf
-#     - inbox_dir
-#     - quiet_seconds
-#     - watch_poll_interval
+#   Reads /srv/announcements/config/announcements.conf
+#     inbox_dir            = /srv/announcements/inbox
+#     quiet_seconds        = 60        # how long inbox must stay idle
+#     watch_poll_interval  = 10        # how often to rescan for changes
+#
+# Marker files in the inbox:
+#   _PROCESSING.txt   = conversion in progress
+#   _READY.txt        = last completed run status/result
+#
+# This script does not do any conversion itself; it only decides
+# *when* to call convert_all.sh based on inbox activity.
 
 set -euo pipefail
 
@@ -58,6 +66,13 @@ if val=$(get_conf_value "watch_poll_interval" 2>/dev/null); then
   fi
 fi
 
+# If the Pi was rebooted or the service crashed mid-run, we may find
+# a stale _PROCESSING.txt and temporary scratch directories. On
+# startup we:
+#   - rename _PROCESSING.txt to _FAILED_<timestamp>.txt (if possible)
+#   - clean up any previous tmp/inbox_snapshot and tmp/staging.* dirs
+# This keeps the next run from being blocked by old state.
+
 # --- Crash recovery on startup ---
 if [ -f "$INBOX/_PROCESSING.txt" ]; then
   ts=$(date +%Y%m%d-%H%M%S)
@@ -80,7 +95,9 @@ while true; do
   sleep "$POLL_INTERVAL"
   now=$(date +%s)
 
-  # Detect any file changes in INBOX (excluding our marker files)
+  # Build a hash of the current inbox contents (excluding our .txt marker files).
+  # We hash "filename + mtime" so any add/remove/modify will change the hash.
+  # When the hash stops changing for QUIET_SECONDS, we treat the inbox as "stable".
   current_hash=$(find "$INBOX" -mindepth 1 -maxdepth 1 \
   ! -name "*.txt" \
   -printf '%P %T@\n' 2>/dev/null | sort | sha1sum || echo "none")
@@ -108,11 +125,22 @@ while true; do
 
   echo "Inbox quiet for ${QUIET_SECONDS}s, starting conversion..."
 
+  # Mark the start of a conversion run:
+  #   - remove any old _READY.txt status
+  #   - create _PROCESSING.txt so other tools know work is in progress
   rm -f "$INBOX/_READY.txt"
   echo "Processing started at $(date)" > "$INBOX/_PROCESSING.txt"
 
+  # Run the converter. On success, write a human-readable status line
+  # to _READY.txt and restart the slideshow so new slides are picked up.
   if "$SCRIPT"; then
     echo "Drop folder processed successfully at $(date)." > "$INBOX/_READY.txt"
+    # Restart slideshow:
+    #   This script runs as the non-root service user ($SERVICE_USER), but
+    #   restarting announcements-slideshow.service requires root.
+    #   The installer adds a sudoers entry allowing this exact command:
+    #     $SERVICE_USER ALL=(root) NOPASSWD: systemctl restart announcements-slideshow.service
+    #   Therefore we invoke systemctl through sudo here.
     sudo systemctl restart announcements-slideshow.service \
       || echo "Warning: failed to restart slideshow service."
   else

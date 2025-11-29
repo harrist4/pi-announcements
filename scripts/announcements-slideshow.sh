@@ -3,16 +3,26 @@
 # announcements-slideshow.sh
 #
 # Purpose:
-#   - Launch pqiv fullscreen slideshow.
-#   - Uses main deck by default, or off-schedule deck if requested.
+#   Launch a fullscreen pqiv slideshow on one of two decks:
+#     - "normal" mode => MAIN_DIR (live announcements)
+#     - "off"    mode => OFF_DIR  (off-hours / black slides)
+#     - "none"        => do not run a slideshow at all (exit)
+#
+# Mode control:
+#   - Reads /tmp/announcements_slides_mode (written by announcements-display.sh)
+#     and chooses which directory to show based on that value.
 #
 # Configuration (announcements.conf):
-#   - live_dir
-#   - off_dir
-#   - slide_duration
-#   - fade_duration
-#   - slideshow_sort
-#   - slideshow_hide_info
+#   live_dir            = /srv/announcements/live
+#   off_dir             = /srv/announcements/off
+#   slide_duration      = 10        # seconds per slide
+#   fade_duration       = 0         # seconds (float, passed to pqiv)
+#   slideshow_sort      = natural | none
+#   slideshow_hide_info = true | false | yes | no | 1 | 0
+#
+# Notes:
+#   - This script does NOT manage schedule or HDMI; it only decides which
+#     directory to display and how pqiv should behave.
 
 set -euo pipefail
 
@@ -78,8 +88,9 @@ if val=$(get_conf_value "slideshow_hide_info" 2>/dev/null); then
   esac
 fi
 
-# Decide which deck to show from MODE_FILE only
+# Decide which deck to show based solely on MODE_FILE (set by scheduler)
 mode="normal"
+
 if [ -f "$MODE_FILE" ]; then
   mode=$(cat "$MODE_FILE" 2>/dev/null || echo "normal")
 fi

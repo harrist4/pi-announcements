@@ -142,7 +142,8 @@ if [[ -f "$LIGHTDM_CONF" ]]; then
     fi
   fi
 else
-  echo "NOTE: $LIGHTDM_CONF not found; please configure desktop auto-login for '$SERVICE_USER' manually."
+  echo "NOTE: $LIGHTDM_CONF not found; please configure desktop auto-login"
+  echo "      for '$SERVICE_USER' manually in your display manager."
 fi
 
 echo "Using user: $OWNER"
@@ -155,7 +156,6 @@ apt-get install -y \
   imagemagick \
   ghostscript \
   pqiv \
-  inotify-tools \
   samba
 
 echo "==> Creating directory structure..."
@@ -208,6 +208,8 @@ echo "SERVICE_USER=$SERVICE_USER" > /etc/announcements-frame/env
 echo "ORIGINAL_GUI_USER=${SUDO_USER:-}" >> /etc/announcements-frame/env
 
 echo "==> Configuring sudoers for slideshow restart..."
+# Allow the non-root service user to restart the slideshow service
+# without a password. Display/watcher scripts rely on this exact rule.
 SUDOERS_SNIPPET="/etc/sudoers.d/announcements-frame"
 SYSTEMCTL_BIN="$(command -v systemctl || echo /usr/bin/systemctl)"
 

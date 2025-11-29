@@ -2,6 +2,12 @@
 #
 # Runs announcements-display.sh
 # The script itself loops forever and handles display ON/OFF polling.
+#
+# Note:
+#   This unit intentionally runs as root so the script can:
+#     - write to BACKLIGHT and HDMI_STATUS sysfs nodes
+#     - restart announcements-slideshow.service directly
+#   Do not add a User= here unless you also adjust permissions.
 
 [Unit]
 Description=Announcements: display power scheduler

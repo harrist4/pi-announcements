@@ -1,8 +1,12 @@
 # /etc/systemd/system/announcements-status.service
 #
-# Runs announcements-status.sh continuously to update _STATUS.txt in the inbox.
-# The script itself contains an internal loop (sleep 30).
-# Must run as root so it can read all tmp/staging directories.
+# Runs announcements-status.sh continuously to update timestamped
+# status files (_STATUS_<timestamp>.txt) in the inbox while a
+# conversion is in progress. The script contains its own loop
+# (sleep 30 between updates).
+#
+# Must run as root so it can always read the temp/staging.*
+# directories, regardless of ownership/mode.
 
 [Unit]
 Description=Announcements: status watcher

@@ -14,6 +14,11 @@
 #
 # Configuration:
 #   - Reads /srv/announcements/config/announcements.conf (key = value, '#' comments)
+#
+# Notes:
+#   - MAX_SLIDES = 0 means "no limit"; otherwise the total number of
+#     generated PNG slides will not exceed MAX_SLIDES (PDF pages and
+#     standalone images combined).
 
 set -euo pipefail
 
@@ -54,9 +59,18 @@ get_conf_value() {
 
 # ---- Override defaults from config (if present) ----
 
+# First: allow base_dir override
 if val=$(get_conf_value "base_dir" 2>/dev/null); then
   [ -n "$val" ] && BASE="$val"
 fi
+
+# Re-derive subdirectories from BASE
+INBOX="$BASE/inbox"
+OUT="$BASE/live"
+LOGDIR="$BASE/logs"
+TMP="$BASE/tmp"
+
+# Then allow explicit overrides to win
 if val=$(get_conf_value "inbox_dir" 2>/dev/null); then
   [ -n "$val" ] && INBOX="$val"
 fi
@@ -155,13 +169,19 @@ groom_image() {
   echo "MAX_SLIDES: $MAX_SLIDES"
   echo
 
+  # SNAPSHOT STRATEGY:
+  #   - Copy current inbox contents (non-.txt) into tmp/inbox_snapshot.
+  #   - All conversions run against the snapshot, so users can keep
+  #     editing the inbox while a run is in progress without breaking
+  #     this batch.
+
   SNAP="$TMP/inbox_snapshot"
   rm -rf "$SNAP"
   mkdir -p "$SNAP"
 
   echo "Creating snapshot of inbox..."
-  # Copy everything except our marker files
-  find "$INBOX" -mindepth 1 -maxdepth 1 ! -name "_READY.txt" ! -name "_PROCESSING.txt" -print0 \
+  # Copy everything except text files (marker/status/readme, etc.)
+  find "$INBOX" -mindepth 1 -maxdepth 1 ! -name "*.txt" -print0 \
     | xargs -0 -r cp -t "$SNAP"
   echo "Snapshot created."
   echo
@@ -345,6 +365,9 @@ groom_image() {
 
   echo "Total slides prepared: $slide_count"
   echo
+
+  # At this point, STAGING contains only final 1920x1080 PNG slides.
+  # We now replace the live output directory contents in one pass.
 
   echo "Staging build complete. Updating live output in-place..."
   mkdir -p "$OUT"

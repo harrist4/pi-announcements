@@ -6,8 +6,9 @@
 #   to show (live vs off-hours) based on /tmp/announcements_slides_mode.
 #
 # Notes:
-#   - Assumes a graphical desktop session on DISPLAY :0
-#   - ${SERVICE_USER} should be the Pi's auto-login desktop user
+#   - Must *not* run as root. Runs as the Pi’s GUI user so pqiv can
+#     connect to the X11/Wayland session.
+#   - Assumes a graphical desktop session on DISPLAY :0.
 
 [Unit]
 Description=Announcements: fullscreen slideshow
@@ -17,9 +18,13 @@ Wants=graphical.target
 [Service]
 User=${SERVICE_USER}
 Group=${SERVICE_USER}
+# Force X11 connection to the primary desktop session.
+# (Pi OS normally auto-logs into DISPLAY :0.)
 Environment=DISPLAY=:0
 
-# Main slideshow launcher script
+Environment=DISPLAY=:0
+
+# pqiv inherits DISPLAY and any config overrides from announcements.conf via the script
 ExecStart=/srv/announcements/announcements-slideshow.sh
 
 # If pqiv exits for any reason, restart the slideshow

@@ -44,6 +44,12 @@
 #     - false = when off-schedule, leave HDMI ON (TV stays awake) and just
 #               switch the slideshow to "off" mode (blank/off-hours deck).
 #
+# Runtime notes:
+#   - This service is intended to run as root so it can:
+#       * write to BACKLIGHT and HDMI_STATUS sysfs nodes
+#       * restart announcements-slideshow.service directly via systemctl
+#   - Non-root execution is not supported and will break display control.
+#
 
 set -euo pipefail
 
