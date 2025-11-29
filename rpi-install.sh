@@ -19,9 +19,9 @@ fi
 
 cd "$SRC_DIR"
 
-echo "==> Running install.sh non-interactively..."
-./install.sh --noninteractive
+echo "==> Running install.sh..."
+./install.sh
 
-echo "==> First-boot install complete."
+echo "==> Install complete...rebooting"
 
 systemctl reboot
