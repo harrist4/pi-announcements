@@ -48,6 +48,20 @@ Samba configuration:
 ```
 /etc/samba/conf.d/announcements.conf
 ```
+## Installation (one-liner)
+On a fresh Raspberry Pi OS **Desktop**, open a terminal and run:
+```bash
+curl -sSL https://raw.githubusercontent.com/harrist4/pi-announcements/main/rpi-install.sh | sudo bash
+```
+You will be prompted to choose a password for the service user (**annc**).  
+When the installer finishes, **reboot** the Pi.
+
+After reboot, connect from another machine to one or both Samba shares:
+
+- `announcements_inbox` – drop PPTX/PDF/images here  
+- `announcements_live` – converted PNG slides
+
+The slideshow starts automatically.
 
 ## Installation
 Run as root:
@@ -65,6 +79,11 @@ Optional flags:
 ## Uninstallation
 ```
 sudo ./uninstall.sh
+```
+
+If you installed with the one-liner:
+```
+sudo /srv/announcements-src/uninstall.sh
 ```
 
 ## Uploading Slides
