@@ -177,10 +177,10 @@ fi
 
 echo "==> Copying scripts..."
 install -m 0755 "$FRAME_DIR/scripts/convert_all.sh"      "$BASE_DIR/convert_all.sh"
-install -m 0755 "$FRAME_DIR/scripts/watch_inbox.sh"      "$BASE_DIR/watch_inbox.sh"
-install -m 0755 "$FRAME_DIR/scripts/start_slideshow.sh"  "$BASE_DIR/start_slideshow.sh"
-install -m 0755 "$FRAME_DIR/scripts/schedule_display.sh" "$BASE_DIR/schedule_display.sh"
-install -m 0755 "$FRAME_DIR/scripts/status_watcher.sh"   "$BASE_DIR/status_watcher.sh"
+install -m 0755 "$FRAME_DIR/scripts/announcements-watcher.sh"      "$BASE_DIR/announcements-watcher.sh"
+install -m 0755 "$FRAME_DIR/scripts/announcements-slideshow.sh"  "$BASE_DIR/announcements-slideshow.sh"
+install -m 0755 "$FRAME_DIR/scripts/announcements-display.sh" "$BASE_DIR/announcements-display.sh"
+install -m 0755 "$FRAME_DIR/scripts/announcements-status.sh"   "$BASE_DIR/announcements-status.sh"
 
 echo "==> Copying config..."
 install -m 0644 "$FRAME_DIR/config/announcements.conf" "$BASE_DIR/config/announcements.conf"

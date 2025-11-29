@@ -10,7 +10,7 @@
 #   - Clean the inbox and signal readiness
 #
 # Triggered by:
-#   - watch_inbox.sh (typically via systemd)
+#   - announcements-watcher.sh (typically via systemd)
 #
 # Configuration:
 #   - Reads /srv/announcements/config/announcements.conf (key = value, '#' comments)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# watch_inbox.sh
+# announcements-watcher.sh
 #
 # Purpose:
 #   - Monitor the inbox directory for changes.

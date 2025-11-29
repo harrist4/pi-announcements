@@ -1,6 +1,6 @@
 # /etc/systemd/system/announcements-display.service
 #
-# Runs schedule_display.sh once (as a oneshot) when invoked by the timer.
+# Runs announcements-display.sh
 # The script itself loops forever and handles display ON/OFF polling.
 
 [Unit]
@@ -9,7 +9,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/srv/announcements/schedule_display.sh
+ExecStart=/srv/announcements/announcements-display.sh
 Restart=always
 RestartSec=5
 

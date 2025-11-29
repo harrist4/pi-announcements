@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# status_watcher.sh
+# announcements-status.sh
 #
 # Purpose:
 #   - While a conversion run is in progress, write a status snapshot

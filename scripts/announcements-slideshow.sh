@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# start_slideshow.sh
+# announcements-slideshow.sh
 #
 # Purpose:
 #   - Launch pqiv fullscreen slideshow.
