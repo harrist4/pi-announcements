@@ -88,7 +88,13 @@ fi
 FRAME_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Optional: read overrides from /boot/announcements.conf
-BOOTCFG="/boot/announcements.conf"
+BOOTCFG=""
+if [[ -f /boot/announcements.conf ]]; then
+  BOOTCFG="/boot/announcements.conf"
+elif [[ -f /boot/firmware/announcements.conf ]]; then
+  BOOTCFG="/boot/firmware/announcements.conf"
+fi
+
 if [[ -f "$BOOTCFG" ]]; then
   # Expect simple shell-style assignments:
   #   SMB_USER=annc
