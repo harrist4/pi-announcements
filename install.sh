@@ -165,12 +165,12 @@ chown -R "$OWNER:$GROUP" "$BASE_DIR"
 echo "==> Creating initial 'installation complete' slide..."
 INSTALL_SLIDE="$BASE_DIR/live/installation_complete.png"
 if [ ! -f "$INSTALL_SLIDE" ]; then
-  convert -size 1920x1080 \
-    -background black \
-    -fill white \
+  convert -size 1920x1080 xc:black \
     -gravity center \
-    -pointsize 44 \
-    caption:"Announcements frame installation complete.\n\nAdd some slides to the inbox share to get started." \
+    -fill white \
+    -font DejaVu-Sans \
+    -pointsize 96 \
+    -annotate +0+0 "Announcements frame\ninstallation complete.\n\nAdd some slides to the inbox\nshare to get started." \
     "$INSTALL_SLIDE" || true
   chown "$OWNER:$GROUP" "$INSTALL_SLIDE"
 fi
