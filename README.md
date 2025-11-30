@@ -17,9 +17,8 @@ A lightweight Raspberry Pi system that converts PowerPoint slides into images an
 - The system is preconfigured to show slides **all day, every day**.
   To change this behavior, edit the scheduler settings in:
   `/srv/announcements/config/announcements.conf`
-- The Raspberry Pi desktop must auto-login as the **service user** created during installation.
-  A **reboot is required after install** for the slideshow to function.
-  A reboot is also required after uninstall to restore the original GUI user.
+- The slideshow runs as the **regular desktop user** who ran the installer (for example, `pi` or another login).
+  A **reboot is recommended after install** so the slideshow and Samba services start cleanly.
 
 ## Requirements
 - Raspberry Pi OS **Desktop** (not Lite)
@@ -37,15 +36,9 @@ A lightweight Raspberry Pi system that converts PowerPoint slides into images an
     tmp/
 ```
 
-Service environment:
-```
-/etc/announcements-frame/env
-```
-This stores the service user name and the original GUI user for uninstall.
-
 Samba configuration:
 ```
-/etc/samba/conf.d/announcements.conf
+/etc/samba/smb.conf    (installer writes a minimal config; original saved as /etc/samba/smb.conf.orig)
 ```
 
 ## Installation (one-liner)
@@ -53,15 +46,15 @@ On a fresh Raspberry Pi OS **Desktop**, open a terminal and run:
 ```bash
 curl -sSL https://raw.githubusercontent.com/harrist4/pi-announcements/main/rpi-install.sh | sudo bash
 ```
-You will be prompted to choose a password for the service user (**annc**).  
-When the installer finishes, the Pi will **reboot**.
+You will be prompted to choose a **Samba password** for your desktop user.  
+When the installer finishes, this script will automatically **reboot**.
 
-After reboot, connect from another machine to one or both Samba shares:
+After install, connect from another machine to one or both Samba shares:
 
 - `announcements_inbox` – drop PPTX/PDF/images here  
 - `announcements_live` – live PNG slides
 
-The slideshow starts automatically.
+The slideshow starts automatically once the services are running.
 
 ## Installation
 Run as root:
@@ -71,9 +64,8 @@ sudo ./install.sh
 
 Optional flags:
 ```
---user NAME         Create/use a specific service user (default: annc)
---password PASS     Password for system + Samba user
---noninteractive    No prompts (requires --password)
+--smbpass PASS      Samba password for the current user
+--noninteractive    Do not prompt; if --smbpass is omitted, a fixed default is used
 ```
 
 ## Uninstallation
