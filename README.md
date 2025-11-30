@@ -2,6 +2,21 @@
 
 A lightweight Raspberry Pi system that converts PowerPoint slides into images and displays them full-screen on a schedule. Designed for church foyers, hallway displays, and any always-on announcement screen.
 
+## Installation (one-liner)
+On a fresh Raspberry Pi OS **Desktop**, open a terminal and run:
+```bash
+curl -sSL https://raw.githubusercontent.com/harrist4/pi-announcements/main/rpi-install.sh | sudo bash
+```
+You will be prompted to choose a **Samba password** for your desktop user.  
+When the installer finishes, this script will automatically **reboot**.
+
+After install, connect from another machine to one or both Samba shares:
+
+- `announcements_inbox` – drop PPTX/PDF/images here  
+- `announcements_live` – live PNG slides
+
+The slideshow starts automatically once the services are running.
+
 ## Features
 - Watches an upload folder for new PowerPoint, PDF, or image files
 - Converts PPTX → PDF → PNG via LibreOffice + ImageMagick
@@ -40,21 +55,6 @@ Samba configuration:
 ```
 /etc/samba/smb.conf    (installer writes a minimal config; original saved as /etc/samba/smb.conf.orig)
 ```
-
-## Installation (one-liner)
-On a fresh Raspberry Pi OS **Desktop**, open a terminal and run:
-```bash
-curl -sSL https://raw.githubusercontent.com/harrist4/pi-announcements/main/rpi-install.sh | sudo bash
-```
-You will be prompted to choose a **Samba password** for your desktop user.  
-When the installer finishes, this script will automatically **reboot**.
-
-After install, connect from another machine to one or both Samba shares:
-
-- `announcements_inbox` – drop PPTX/PDF/images here  
-- `announcements_live` – live PNG slides
-
-The slideshow starts automatically once the services are running.
 
 ## Installation
 Run as root:
