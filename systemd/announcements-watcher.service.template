@@ -6,7 +6,7 @@
 # slide deck and writes marker files (_PROCESSING.txt, _READY.txt).
 #
 # Notes:
-#   - Runs as ${SERVICE_USER}, not root.
+#   - Runs as ${REAL_USER}, not root.
 #   - Requires sudoers rule (installed by setup) so the watcher can
 #     restart announcements-slideshow.service after a successful run.
 
@@ -17,8 +17,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=${SERVICE_USER}
-Group=${SERVICE_USER}
+User=${REAL_USER}
+Group=${REAL_USER}
 ExecStart=/srv/announcements/announcements-watcher.sh
 Restart=always
 RestartSec=5

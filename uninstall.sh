@@ -8,8 +8,8 @@
 # Removes:
 #   - systemd units
 #   - /srv/announcements (all contents)
-#   - Samba share definitions (from /etc/samba/conf.d/announcements.conf)
-#   - The dedicated service user (system + Samba), as configured in /etc/announcements-frame/env
+#   - /etc/announcements-frame (env + config)
+#   - Restores /etc/samba/smb.conf from backup if available
 #
 # Usage:
 #   sudo ./uninstall.sh [--force]
@@ -25,8 +25,6 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 BASE="/srv/announcements"
-SERVICE_USER="annc"
-# Default to 'annc'; this will be overridden if /etc/announcements-frame/env exists.
 FORCE=0
 
 # Parse flags: currently only --force
@@ -47,60 +45,13 @@ if [[ "$FORCE" -ne 1 ]]; then
   echo "This will:"
   echo "  - stop and remove announcements systemd services"
   echo "  - delete $BASE and all its contents"
-  echo "  - remove Samba config: /etc/samba/conf.d/announcements.conf"
-  echo "  - remove the service user (system + Samba) defined in /etc/announcements-frame/env"
+  echo "  - remove /etc/announcements-frame"
+  echo "  - restore /etc/samba/smb.conf from backup, if available"
   echo
   read -r -p "Type 'yes' to continue: " REPLY
   if [[ "$REPLY" != "yes" ]]; then
     echo "Aborted."
     exit 1
-  fi
-fi
-
-# /etc/announcements-frame/env is written by install.sh and usually contains:
-#   SERVICE_USER=<service user name>
-#   ORIGINAL_GUI_USER=<desktop user before we changed autologin>
-# If missing, we fall back to the default service user "annc".
-
-# Load configured user
-if [[ -f /etc/announcements-frame/env ]]; then
-  source /etc/announcements-frame/env
-else
-  SERVICE_USER="annc"
-fi
-
-# --- Desktop auto-login restore/cleanup --------------------------------------
-
-LIGHTDM_CONF="/etc/lightdm/lightdm.conf"
-OLD_AUTOCONF="/etc/lightdm/lightdm.conf.d/99-autologin.conf"
-
-# Remove old conf.d autologin file if we ever created one
-rm -f "$OLD_AUTOCONF" 2>/dev/null || true
-
-if [[ -f "$LIGHTDM_CONF" ]]; then
-  if [[ -n "${ORIGINAL_GUI_USER:-}" ]]; then
-    echo "==> Restoring desktop autologin to '$ORIGINAL_GUI_USER'..."
-    if grep -q '^autologin-user=' "$LIGHTDM_CONF"; then
-      # Replace existing autologin-user line
-      sed -i "s/^autologin-user=.*/autologin-user=$ORIGINAL_GUI_USER/" "$LIGHTDM_CONF"
-    else
-      # Insert under [Seat:*] if present, otherwise append at end
-      if grep -q '^\[Seat:\*\]' "$LIGHTDM_CONF"; then
-        awk '
-          /^\[Seat:\*\]/ {
-            print
-            print "autologin-user='"$ORIGINAL_GUI_USER"'"
-            next
-          }
-          { print }
-        ' "$LIGHTDM_CONF" > "${LIGHTDM_CONF}.tmp" && mv "${LIGHTDM_CONF}.tmp" "$LIGHTDM_CONF"
-      else
-        printf "\n[Seat:*]\nautologin-user=%s\n" "$ORIGINAL_GUI_USER" >> "$LIGHTDM_CONF"
-      fi
-    fi
-  else
-    echo "==> No ORIGINAL_GUI_USER recorded; removing autologin for '$SERVICE_USER' (if present)..."
-    sed -i "\|^autologin-user=$SERVICE_USER$|d" "$LIGHTDM_CONF"
   fi
 fi
 
@@ -124,57 +75,22 @@ rm -f /etc/systemd/system/announcements-status.service
 
 systemctl daemon-reload
 
-echo "==> Removing /srv/announcements..."
+echo "==> Removing $BASE..."
 rm -rf "$BASE"
 
 # --- Samba cleanup ------------------------------------------------------------
 
-SMB_ANN_FILE="/etc/samba/conf.d/announcements.conf"
 SMB_MAIN_CONF="/etc/samba/smb.conf"
+SMB_BACKUP="/etc/samba/smb.conf.orig"
 
-if [[ -f "$SMB_ANN_FILE" ]]; then
-  echo "==> Removing Samba announcements config..."
-  rm -f "$SMB_ANN_FILE"
-
-  # Remove the include line we added during install
-  sed -i "\|include = $SMB_ANN_FILE|d" "$SMB_MAIN_CONF"
-
+if [[ -f "$SMB_BACKUP" ]]; then
+  echo "==> Restoring original Samba config from $SMB_BACKUP..."
+  mv -f "$SMB_BACKUP" "$SMB_MAIN_CONF"
   systemctl restart smbd nmbd 2>/dev/null || systemctl restart smbd || true
+else
+  echo "==> No Samba backup found; leaving $SMB_MAIN_CONF as-is."
 fi
-
-# --- sudoers cleanup ----------------------------------------------------------
-
-# Remove the sudoers rule that allowed the service user to restart the slideshow.      
-SUDOERS_SNIPPET="/etc/sudoers.d/announcements-frame"
-if [[ -f "$SUDOERS_SNIPPET" ]]; then
-  echo "==> Removing sudoers snippet for slideshow restart..."
-  rm -f "$SUDOERS_SNIPPET"
-fi
-
-# --- User cleanup -------------------------------------------------------------
-
-echo "==> Removing Samba user '$SERVICE_USER'..."
-smbpasswd -x "$SERVICE_USER" 2>/dev/null || true
-
-echo "==> Terminating running processes for '$SERVICE_USER'..."
-pkill -u "$SERVICE_USER" 2>/dev/null || true
-
-echo "==> Removing system user '$SERVICE_USER'..."
-deluser --remove-home "$SERVICE_USER" 2>/dev/null || true
-
-echo "==> Removing service config directory..."
-rm -rf /etc/announcements-frame 2>/dev/null || true
 
 echo
 echo "Uninstall complete."
-echo
-
-if [[ -n "${ORIGINAL_GUI_USER:-}" ]]; then
-  echo "After reboot, the Pi will auto-login as '$ORIGINAL_GUI_USER' (original setup)."
-else
-  echo "After reboot, desktop autologin has been cleaned up for '$SERVICE_USER'."
-  echo "You may need to reconfigure autologin manually for your preferred user."
-fi
-
-echo
-echo "Reinstall with: sudo ./install.sh"
+echo "You can reinstall later with: sudo ./install.sh"

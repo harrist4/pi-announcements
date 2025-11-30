@@ -16,8 +16,8 @@ After=graphical.target
 Wants=graphical.target
 
 [Service]
-User=${SERVICE_USER}
-Group=${SERVICE_USER}
+User=${REAL_USER}
+Group=${REAL_USER}
 # Force X11 connection to the primary desktop session.
 # (Pi OS normally auto-logs into DISPLAY :0.)
 Environment=DISPLAY=:0

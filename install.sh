@@ -7,20 +7,19 @@
 #   - Lay out /srv/announcements directory tree
 #   - Copy scripts + config into place
 #   - Install and enable systemd units
-#   - Configure Samba shares (via /etc/samba/conf.d/)
-#   - Create a dedicated service user for file ownership + Samba access
+#   - Configure Samba shares (single minimal smb.conf)
+#   - Use the current logged-in user for file ownership + Samba access
 #
 # Usage:
-#   sudo ./install.sh [--user NAME] [--password PASS] [--noninteractive]
+#   sudo ./install.sh [--smbpass PASS] [--noninteractive]
 #
 # Flags:
-#   --user NAME         Create/use this service user instead of the default "annc"
-#   --password PASS     Password for the service user (system + Samba)
-#   --noninteractive    Do not prompt; requires --password
+#   --smbpass PASS      Samba password for the current user
+#   --noninteractive    Do not prompt; if --smbpass is omitted, a fixed default is used
 #
 # Notes:
 #   - /srv/announcements is the runtime base directory.
-#   - The service user owns all files and is the only Samba user allowed.
+#   - The current logged-in user owns all files and is the only Samba user allowed.
 #   - Assumes Raspberry Pi OS Desktop (Debian-based).
 
 set -euo pipefail
@@ -30,19 +29,20 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-SERVICE_USER="annc"
-SERVICE_USER_PASS=""
+REAL_USER="${SUDO_USER:-}"
+if [[ -z "$REAL_USER" || "$REAL_USER" == "root" ]]; then
+  echo "ERROR: Cannot determine non-root invoking user."
+  echo "Run this script using:  sudo ./install.sh"
+  exit 1
+fi
+SMB_PASS=""
 NONINTERACTIVE=0
 
-# Parse flags: --user, --password, --noninteractive
+# Parse flags: --smbpass, --noninteractive
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --user)
-      SERVICE_USER="$2"
-      shift 2
-      ;;
-    --password)
-      SERVICE_USER_PASS="$2"
+    --smbpass)
+      SMB_PASS="$2"
       shift 2
       ;;
     --noninteractive)
@@ -50,31 +50,10 @@ while [[ $# -gt 0 ]]; do
       shift 1
       ;;
     *)
-      # Unknown flag; ignore or break if you prefer strictness
       shift 1
       ;;
   esac
 done
-
-# Basic validation for service user name
-if [[ -z "$SERVICE_USER" ]]; then
-  echo "ERROR: service user name cannot be empty." >&2
-  exit 1
-fi
-
-if [[ "$SERVICE_USER" == "root" ]]; then
-  echo "ERROR: service user cannot be 'root'." >&2
-  exit 1
-fi
-
-# Allow typical Unix usernames: start with letter/underscore, then letters/numbers/_/-
-if [[ ! "$SERVICE_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
-  echo "ERROR: invalid service user name: '$SERVICE_USER'." >&2
-  echo "Allowed: start with a letter or underscore, then letters, digits, '_' or '-'." >&2
-  exit 1
-fi
-
-echo "==> Service user will be: $SERVICE_USER"
 
 # Ensure we are running on a system with a desktop environment
 if ! command -v startx >/dev/null; then
@@ -85,65 +64,20 @@ fi
 
 FRAME_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# OWNER/GROUP always match SERVICE_USER
-OWNER="$SERVICE_USER"
-GROUP="$SERVICE_USER"
+OWNER="$REAL_USER"
+GROUP="$REAL_USER"
+echo "==> Using real user: $REAL_USER"
 
 BASE_DIR="/srv/announcements"
 
-echo "==> Creating service user '$SERVICE_USER' (if missing)..."
-if ! id "$SERVICE_USER" >/dev/null 2>&1; then
-  adduser --disabled-password --gecos "" "$SERVICE_USER"
-fi
-
-echo
-
-# --- Password selection logic for SERVICE_USER_PASS ---
-
-if [[ -z "$SERVICE_USER_PASS" ]]; then
+# --- SMB password logic ---
+if [[ -z "$SMB_PASS" ]]; then
   if [[ "$NONINTERACTIVE" -eq 1 ]]; then
-    # Noninteractive mode: fall back to a sane default
-    SERVICE_USER_PASS="changeme"
+    SMB_PASS="announcements"
   else
-    # Interactive mode: prompt the user
-    read -s -p "Set password for user '$SERVICE_USER' (used for both system + Samba): " SERVICE_USER_PASS < /dev/tty
+    read -s -p "Set Samba password for user '$REAL_USER': " SMB_PASS < /dev/tty
     echo
   fi
-fi
-
-if [[ -z "$SERVICE_USER_PASS" ]]; then
-  echo "ERROR: empty passwords are not allowed." >&2
-  exit 1
-fi
-
-echo "$SERVICE_USER:$SERVICE_USER_PASS" | chpasswd
-
-echo "==> Configuring desktop auto-login for '$SERVICE_USER'..."
-
-LIGHTDM_CONF="/etc/lightdm/lightdm.conf"
-
-if [[ -f "$LIGHTDM_CONF" ]]; then
-  if grep -q '^autologin-user=' "$LIGHTDM_CONF"; then
-    # Replace existing autologin-user line
-    sed -i "s/^autologin-user=.*/autologin-user=$SERVICE_USER/" "$LIGHTDM_CONF"
-  else
-    # Insert under [Seat:*] if present, otherwise append at end
-    if grep -q '^\[Seat:\*\]' "$LIGHTDM_CONF"; then
-      awk '
-        /^\[Seat:\*\]/ {
-          print
-          print "autologin-user='"$SERVICE_USER"'"
-          next
-        }
-        { print }
-      ' "$LIGHTDM_CONF" > "${LIGHTDM_CONF}.tmp" && mv "${LIGHTDM_CONF}.tmp" "$LIGHTDM_CONF"
-    else
-      printf '\n[Seat:*]\nautologin-user=%s\n' "$SERVICE_USER" >> "$LIGHTDM_CONF"
-    fi
-  fi
-else
-  echo "NOTE: $LIGHTDM_CONF not found; please configure desktop auto-login"
-  echo "      for '$SERVICE_USER' manually in your display manager."
 fi
 
 echo "Using user: $OWNER"
@@ -201,25 +135,8 @@ if [ ! -f "$BASE_DIR/off/black.png" ]; then
 fi
 chown -R "$OWNER:$GROUP" "$BASE_DIR/off"
 
-echo "==> Writing service configuration..."
-mkdir -p /etc/announcements-frame
-# Record service user and the original GUI user so uninstall can restore autologin
-echo "SERVICE_USER=$SERVICE_USER" > /etc/announcements-frame/env
-echo "ORIGINAL_GUI_USER=${SUDO_USER:-}" >> /etc/announcements-frame/env
-
-echo "==> Configuring sudoers for slideshow restart..."
-# Allow the non-root service user to restart the slideshow service
-# without a password. Display/watcher scripts rely on this exact rule.
-SUDOERS_SNIPPET="/etc/sudoers.d/announcements-frame"
-SYSTEMCTL_BIN="$(command -v systemctl || echo /usr/bin/systemctl)"
-
-cat > "$SUDOERS_SNIPPET" <<EOF
-$SERVICE_USER ALL=(root) NOPASSWD: $SYSTEMCTL_BIN restart announcements-slideshow.service
-EOF
-chmod 440 "$SUDOERS_SNIPPET"
-
 echo "==> Installing systemd units..."
-export SERVICE_USER
+export REAL_USER
 
 envsubst < "$FRAME_DIR/systemd/announcements-watcher.service.template" \
   > /etc/systemd/system/announcements-watcher.service
@@ -246,22 +163,40 @@ systemctl start announcements-display.service
 systemctl start announcements-status.service
 
 echo "==> Setting Samba password..."
-echo -e "$SERVICE_USER_PASS\n$SERVICE_USER_PASS" | smbpasswd -a -s "$SERVICE_USER"
+echo -e "$SMB_PASS\n$SMB_PASS" | smbpasswd -a -s "$REAL_USER"
 
-echo "==> Configuring Samba shares..."
+echo "==> Installing minimal Samba config..."
 
-SMB_D_DIR="/etc/samba/conf.d"
-SMB_ANN_FILE="$SMB_D_DIR/announcements.conf"
 SMB_MAIN_CONF="/etc/samba/smb.conf"
+SMB_BACKUP="/etc/samba/smb.conf.orig"
 
-mkdir -p "$SMB_D_DIR"
+# Backup original smb.conf once (idempotent)
+if [[ -f "$SMB_MAIN_CONF" && ! -f "$SMB_BACKUP" ]]; then
+  cp "$SMB_MAIN_CONF" "$SMB_BACKUP"
+fi
 
-cat > "$SMB_ANN_FILE" <<EOF
+# Write a complete minimal smb.conf containing both shares
+cat > "$SMB_MAIN_CONF" <<EOF
+[global]
+   workgroup = WORKGROUP
+   server string = %h server
+   security = user
+   map to guest = Bad User
+   unix extensions = no
+
+   # Disable implicit shares
+   load printers = no
+   printing = bsd
+   printcap name = /dev/null
+   disable spoolss = yes
+
+   usershare allow guests = no
+
 [announcements_inbox]
   path = $BASE_DIR/inbox
   browseable = yes
   read only = no
-  valid users = $SERVICE_USER
+  valid users = $REAL_USER
   create mask = 0664
   directory mask = 0775
   veto files = /._*/.DS_Store/.Trash*/.Spotlight-V100/.fseventsd/
@@ -273,7 +208,7 @@ cat > "$SMB_ANN_FILE" <<EOF
   path = $BASE_DIR/live
   browseable = yes
   read only = no
-  valid users = $SERVICE_USER
+  valid users = $REAL_USER
   create mask = 0664
   directory mask = 0775
   veto files = /._*/.DS_Store/.Trash*/.Spotlight-V100/.fseventsd/
@@ -282,14 +217,7 @@ cat > "$SMB_ANN_FILE" <<EOF
   sync always = yes
 EOF
 
-# Ensure main smb.conf includes our file (no wildcards; Samba doesn't expand them here)
-if [[ -f "$SMB_MAIN_CONF" ]]; then
-  # Add a clean include line if missing
-  if ! grep -q '^include = /etc/samba/conf.d/announcements.conf$' "$SMB_MAIN_CONF"; then
-    printf 'include = /etc/samba/conf.d/announcements.conf\n' >> "$SMB_MAIN_CONF"
-  fi
-fi
-
+echo "==> Restarting Samba..."
 systemctl restart smbd nmbd 2>/dev/null || systemctl restart smbd || true
 
 echo
@@ -297,7 +225,6 @@ echo "Install complete."
 echo "- Drop .pptx files into $BASE_DIR/inbox (Samba: announcements_inbox)"
 echo "- Converted slides appear in $BASE_DIR/live (Samba: announcements_live)"
 echo "- Slideshow + scheduler systemd units installed"
-echo "- Service user: $SERVICE_USER"
+echo "- Running under user: $REAL_USER"
 echo
-echo "NOTE: A reboot is required."
-echo "After reboot, the Pi will auto-login as '$SERVICE_USER' for the slideshow to function."
+echo "NOTE: A reboot is recommended."
