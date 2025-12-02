@@ -8,7 +8,7 @@ _announcements()
 
   # top-level commands
   if [[ $COMP_CWORD -eq 1 ]]; then
-    local opts="config help logs off paths services smb start status stop restart summary test version"
+    local opts="config help logs off paths services smb start status stop restart test version"
     COMPREPLY=( $(compgen -W "$opts" -- "$cur") )
   fi
 

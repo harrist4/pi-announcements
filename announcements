@@ -28,13 +28,19 @@ if [[ $EUID -eq 0 ]]; then
   exit 1
 fi
 
-RED=$(tput setaf 1)
-GREEN=$(tput setaf 2)
-RESET=$(tput sgr0)
+if [[ -t 1 ]]; then
+  RED=$(tput setaf 1)
+  GREEN=$(tput setaf 2)
+  RESET=$(tput sgr0)
+else
+  RED=""
+  GREEN=""
+  RESET=""
+fi
 
 usage() {
   cat <<EOF
-Usage: $fn {status|services|smb|config|start|stop|restart|logs|summary|test|paths|version|off|help}
+Usage: $fn {status|services|smb|config|start|stop|off|restart|logs|test|paths|version|help}
 
   status     Show brief runtime status (slides, counts, service activity)
   services   Show detailed systemd service status
@@ -43,14 +49,13 @@ Usage: $fn {status|services|smb|config|start|stop|restart|logs|summary|test|path
 
   start      Start all announcements services
   stop       Stop all announcements services
+  off        Force “black screen” mode
   restart    Restart all announcements services
   logs       Show recent logs for all announcements services
 
-  summary    One-line summary of system state
   test       Structural install health check
   paths      Show key directories and state files
   version    Show installed version info
-  off        Force “black screen” mode
   help       Show this help
 
 Notes:
@@ -76,7 +81,7 @@ do_status() {
 
   live_count=$(find "$LIVE_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
   inbox_count=$(find "$INBOX_DIR" -maxdepth 1 -type f ! -name '*.txt' 2>/dev/null | wc -l | tr -d ' ')
-  tmp_count=$(find "$TMP_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+  tmp_count=$(find "$TMP_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
   echo "Live: $live_count    Inbox: $inbox_count    Temp: $tmp_count"
   echo
 
@@ -178,42 +183,6 @@ do_version() {
   fi
 }
 
-do_summary() {
-  echo "=== Announcements Frame Summary ==="
-  if [ -f "$SRC_DIR/VERSION" ]; then
-    echo -n "Version: "
-    cat "$SRC_DIR/VERSION"
-  else
-    echo "Version: (unknown)"
-  fi
-
-  if [ -f "$INSTALL_INFO" ]; then
-    echo "Install info:"
-    sed 's/^/  /' "$INSTALL_INFO"
-  fi
-
-  echo
-  if [ -d "$LIVE_DIR" ]; then
-    local live_count
-    live_count=$(find "$LIVE_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
-    echo "Live slides dir: $LIVE_DIR ($live_count files)"
-  else
-    echo "Live slides dir: $LIVE_DIR (missing)"
-  fi
-
-  echo "Inbox dir:      $INBOX_DIR"
-  echo
-  echo "Services:"
-  for s in "${SERVICES[@]}"; do
-    if systemctl is-active --quiet "$s.service" 2>/dev/null; then
-      state="active"
-    else
-      state="inactive"
-    fi
-    echo "  $s.service: $state"
-  done
-}
-
 do_paths() {
   cat <<EOF
 == Paths ==
@@ -244,6 +213,7 @@ do_off() {
 }
 
 cmd="${1:-help}"
+shift
 
 case "$cmd" in
   services)
@@ -271,9 +241,6 @@ case "$cmd" in
     ;;
   version)
     do_version
-    ;;
-  summary)
-    do_summary
     ;;
   paths)
     do_paths
