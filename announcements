@@ -1,5 +1,6 @@
 #!/bin/bash
 # Helper for the Raspberry Pi Announcements Frame
+cmd=$(basename "$0")
 
 SERVICES=(
   announcements-watcher
@@ -30,7 +31,7 @@ fi
 
 usage() {
   cat <<EOF
-Usage: $0 {status|start|stop|restart|logs|test|version|summary|paths|off|help}
+Usage: $cmd {status|start|stop|restart|logs|test|version|summary|paths|off|help}
 
   status    Show brief status of all announcements services
   start     Start all announcements services
@@ -45,7 +46,7 @@ Usage: $0 {status|start|stop|restart|logs|test|version|summary|paths|off|help}
   help      Show this help
 
 Notes:
-  Use "$0 paths" to see key directories and state files.
+  Use "$cmd paths" to see key directories and state files.
   To uninstall, run: sudo /srv/announcements-src/uninstall.sh
 EOF
 }
