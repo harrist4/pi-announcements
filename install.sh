@@ -229,12 +229,25 @@ EOF
 echo "==> Restarting Samba..."
 systemctl restart smbd nmbd 2>/dev/null || systemctl restart smbd || true
 
-echo "==> Updating /etc/motd with announcements hint..."
-if [ -f /etc/motd ] && [ ! -f /etc/motd.announcements.bak ]; then
-  cp /etc/motd /etc/motd.announcements.bak
+# --- MOTD enhancement ---------------------------------------------------------
+MOTD_MAIN="/etc/motd"
+MOTD_BACKUP="/etc/motd.announcements.bak"
+HINT_TEXT='Hint: control announcements with the "announcements" command.'
+
+echo "==> Updating MOTD with announcements hint..."
+
+# Backup original once
+if [[ -f "$MOTD_MAIN" && ! -f "$MOTD_BACKUP" ]]; then
+  cp "$MOTD_MAIN" "$MOTD_BACKUP"
 fi
-if ! grep -q 'control announcements with the "announcements" command' /etc/motd 2>/dev/null; then
-  printf '\nHint: control announcements with the "announcements" command.\n' >> /etc/motd
+
+# Append only if the hint isn't already present (idempotent)
+if ! grep -Fq "$HINT_TEXT" "$MOTD_MAIN" 2>/dev/null; then
+  {
+    printf '\n'
+    printf '\033[1;32m%s\033[0m\n' "$HINT_TEXT"
+    printf '\n'
+  } >> "$MOTD_MAIN"
 fi
 
 # --- Version display (if VERSION file exists) ---
