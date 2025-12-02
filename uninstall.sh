@@ -75,6 +75,12 @@ rm -f /etc/systemd/system/announcements-status.service
 
 systemctl daemon-reload
 
+echo "==> Removing announcements helper command..."
+rm -f /usr/local/bin/announcements
+
+echo "==> Removing bash completion for announcements..."
+rm -f /etc/bash_completion.d/announcements
+
 echo "==> Removing $BASE..."
 rm -rf "$BASE"
 
@@ -89,6 +95,16 @@ if [[ -f "$SMB_BACKUP" ]]; then
   systemctl restart smbd nmbd 2>/dev/null || systemctl restart smbd || true
 else
   echo "==> No Samba backup found; leaving $SMB_MAIN_CONF as-is."
+fi
+
+# --- motd cleanup -------------------------------------------------------------
+if [[ -f /etc/motd.announcements.bak ]]; then
+  echo "==> Restoring /etc/motd from backup..."
+  mv -f /etc/motd.announcements.bak /etc/motd
+else
+  if [[ -f /etc/motd ]]; then
+    sed -i '/control announcements with the "announcements" command/d' /etc/motd || true
+  fi
 fi
 
 echo

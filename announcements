@@ -1,0 +1,234 @@
+#!/bin/bash
+# Helper for the Raspberry Pi Announcements Frame
+
+SERVICES=(
+  announcements-watcher
+  announcements-slideshow
+  announcements-display
+  announcements-status
+)
+
+BASE_DIR="/srv/announcements"
+INBOX_DIR="$BASE_DIR/inbox"
+LIVE_DIR="$BASE_DIR/live"
+OFF_DIR="$BASE_DIR/off"
+CONF_FILE="$BASE_DIR/config/announcements.conf"
+LOG_DIR="$BASE_DIR/logs"
+TMP_DIR="$BASE_DIR/tmp"
+
+SRC_DIR="/srv/announcements-src"
+INSTALL_INFO="$BASE_DIR/INSTALL_INFO"
+
+DISPLAY_STATE_FILE="/tmp/announcements_display_state"
+SLIDES_MODE_FILE="/tmp/announcements_slides_mode"
+
+# Don't run this helper as root; it will sudo where needed.
+if [[ $EUID -eq 0 ]]; then
+  echo "Do not run this helper as root; it will sudo individual commands as needed."
+  exit 1
+fi
+
+usage() {
+  cat <<EOF
+Usage: $0 {status|start|stop|restart|logs|test|version|summary|paths|off|help}
+
+  status    Show brief status of all announcements services
+  start     Start all announcements services
+  stop      Stop all announcements services
+  restart   Restart all announcements services
+  logs      Show recent logs for all announcements services
+  test      Run basic health checks on directories and services
+  version   Show installed version information (if available)
+  summary   Show a one-line summary of slides and service state
+  paths     Show key directories and state file locations
+  off       Force the slideshow into "black screen" mode
+  help      Show this help
+
+Notes:
+  Use "$0 paths" to see key directories and state files.
+  To uninstall, run: sudo /srv/announcements-src/uninstall.sh
+EOF
+}
+
+do_services() {
+  local action="$1"
+  for s in "${SERVICES[@]}"; do
+    echo "--- $action $s.service ---"
+    sudo systemctl "$action" "$s.service"
+  done
+}
+
+do_status() {
+  for s in "${SERVICES[@]}"; do
+    echo "=== $s.service ==="
+    sudo systemctl status "$s.service" --no-pager --lines=2 || true
+    echo
+  done
+}
+
+do_logs() {
+  local lines="${1:-50}"
+  for s in "${SERVICES[@]}"; do
+    echo "=== journal: $s.service (last $lines lines) ==="
+    sudo journalctl -u "$s.service" --no-pager -n "$lines" || true
+    echo
+  done
+}
+
+do_test() {
+  echo "== Directories =="
+  if [ -d "$BASE_DIR" ]; then
+    echo "  OK: $BASE_DIR exists"
+  else
+    echo "  FAIL: $BASE_DIR is missing"
+  fi
+
+  if [ -d "$LIVE_DIR" ]; then
+    echo "  OK: $LIVE_DIR exists"
+  else
+    echo "  FAIL: $LIVE_DIR is missing"
+  fi
+
+  if [ -f "$CONF_FILE" ]; then
+    echo "  OK: $CONF_FILE exists"
+  else
+    echo "  FAIL: $CONF_FILE is missing"
+  fi
+
+  echo
+  echo "== Services =="
+  for s in "${SERVICES[@]}"; do
+    if systemctl is-enabled --quiet "$s.service" 2>/dev/null; then
+      enabled="enabled"
+    else
+      enabled="disabled"
+    fi
+    if systemctl is-active --quiet "$s.service" 2>/dev/null; then
+      active="active"
+    else
+      active="inactive"
+    fi
+    echo "  $s.service: $enabled, $active"
+  done
+}
+
+do_version() {
+  echo "== Version =="
+  if [ -f "$SRC_DIR/VERSION" ]; then
+    echo -n "  Announcements Frame: "
+    cat "$SRC_DIR/VERSION"
+  else
+    echo "  Version file not found at $SRC_DIR/VERSION"
+  fi
+
+  if [ -f "$INSTALL_INFO" ]; then
+    echo
+    echo "== Install info =="
+    sed 's/^/  /' "$INSTALL_INFO"
+  fi
+}
+
+do_summary() {
+  echo "=== Announcements Frame Summary ==="
+  if [ -f "$SRC_DIR/VERSION" ]; then
+    echo -n "Version: "
+    cat "$SRC_DIR/VERSION"
+  else
+    echo "Version: (unknown)"
+  fi
+
+  if [ -f "$INSTALL_INFO" ]; then
+    echo "Install info:"
+    sed 's/^/  /' "$INSTALL_INFO"
+  fi
+
+  echo
+  if [ -d "$LIVE_DIR" ]; then
+    local live_count
+    live_count=$(find "$LIVE_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+    echo "Live slides dir: $LIVE_DIR ($live_count files)"
+  else
+    echo "Live slides dir: $LIVE_DIR (missing)"
+  fi
+
+  echo "Inbox dir:      $INBOX_DIR"
+  echo
+  echo "Services:"
+  for s in "${SERVICES[@]}"; do
+    if systemctl is-active --quiet "$s.service" 2>/dev/null; then
+      state="active"
+    else
+      state="inactive"
+    fi
+    echo "  $s.service: $state"
+  done
+}
+
+do_paths() {
+  cat <<EOF
+== Paths ==
+Base dir:          $BASE_DIR
+Inbox (upload):    $INBOX_DIR
+Live slides:       $LIVE_DIR
+Off-schedule:      $OFF_DIR
+Config:            $CONF_FILE
+Logs:              $LOG_DIR
+Temp:              $TMP_DIR
+
+Display state file:    $DISPLAY_STATE_FILE
+Slides mode file:      $SLIDES_MODE_FILE
+
+Source tree (scripts, VERSION, uninstall):
+  $SRC_DIR
+EOF
+}
+
+do_off() {
+  echo "Forcing slideshow into 'off' (black screen) mode..."
+  echo "off" | sudo tee "$SLIDES_MODE_FILE" >/dev/null || {
+    echo "Failed to write $SLIDES_MODE_FILE" >&2
+    return 1
+  }
+  echo "Restarting slideshow service..."
+  sudo systemctl restart announcements-slideshow.service || true
+  echo "Done. The slideshow should switch to black on the next refresh."
+}
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+  status)
+    do_status
+    ;;
+  start|stop|restart)
+    do_services "$cmd"
+    ;;
+  logs)
+    do_logs "${1:-50}"
+    ;;
+  test)
+    do_test
+    ;;
+  version)
+    do_version
+    ;;
+  summary)
+    do_summary
+    ;;
+  paths)
+    do_paths
+    ;;
+  off)
+    do_off
+    ;;
+  help|-h|--help|"")
+    usage
+    ;;
+  *)
+    echo "Unknown command: $cmd"
+    echo
+    usage
+    exit 1
+    ;;
+esac

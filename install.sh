@@ -116,6 +116,15 @@ install -m 0755 "$FRAME_DIR/scripts/announcements-slideshow.sh"  "$BASE_DIR/anno
 install -m 0755 "$FRAME_DIR/scripts/announcements-display.sh" "$BASE_DIR/announcements-display.sh"
 install -m 0755 "$FRAME_DIR/scripts/announcements-status.sh"   "$BASE_DIR/announcements-status.sh"
 
+echo "==> Installing announcements helper command..."
+if [ -f "$FRAME_DIR/announcements" ]; then
+  install -m 0755 "$FRAME_DIR/announcements" /usr/local/bin/announcements
+fi
+
+echo "==> Installing bash completion for announcements..."
+install -m 0644 "$FRAME_DIR/completions/announcements.bash" \
+  /etc/bash_completion.d/announcements
+
 echo "==> Copying config..."
 install -m 0644 "$FRAME_DIR/config/announcements.conf" "$BASE_DIR/config/announcements.conf"
 chown -R "$OWNER:$GROUP" "$BASE_DIR/config"
@@ -219,6 +228,19 @@ EOF
 
 echo "==> Restarting Samba..."
 systemctl restart smbd nmbd 2>/dev/null || systemctl restart smbd || true
+
+echo "==> Updating /etc/motd with announcements hint..."
+if [ -f /etc/motd ] && [ ! -f /etc/motd.announcements.bak ]; then
+  cp /etc/motd /etc/motd.announcements.bak
+fi
+if ! grep -q 'control announcements with the "announcements" command' /etc/motd 2>/dev/null; then
+  printf '\nHint: control announcements with the "announcements" command.\n' >> /etc/motd
+fi
+
+# --- Version display (if VERSION file exists) ---
+if [ -f "$FRAME_DIR/VERSION" ]; then
+  echo "Version: $(cat "$FRAME_DIR/VERSION")"
+fi
 
 echo
 echo "Install complete."

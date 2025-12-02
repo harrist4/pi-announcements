@@ -17,6 +17,28 @@ After install, connect from another machine to one or both Samba shares:
 
 The slideshow starts automatically once the services are running.
 
+## Managing the System
+
+A helper command is installed on the Raspberry Pi:
+
+```bash
+announcements
+```
+
+This command provides convenient management of the system services:
+
+- `announcements status` – show status of all announcement services  
+- `announcements start` – start all services  
+- `announcements stop` – stop all services  
+- `announcements restart` – restart all services  
+- `announcements logs` – show recent logs
+
+Running `announcements` **with no arguments** displays the available subcommands and shows helpful paths such as the slide directories and config locations.
+
+A reminder line is added to `/etc/motd` on install:
+
+> Hint: control announcements with the "announcements" command.
+
 ## Features
 - Watches an upload folder for new PowerPoint, PDF, or image files
 - Converts PPTX → PDF → PNG via LibreOffice + ImageMagick
