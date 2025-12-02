@@ -124,11 +124,7 @@ Within that loop:
 ### Scheduling the Display
 The `announcements-display.service` service launches `announcements-display.sh`, which runs an infinite loop.
 This script views the schedule in the config file and determines if the slide show should be visible.
-Two state files are used:
-
-`/tmp/announcements_display_state` is of questionable value, intended to prevent HDMI on/off spamming, but there should be a better way.
-
-`/tmp/announcements_slides_mode` file is used to communicate the current mode to the slide show service. 
+The `/tmp/announcements_slides_mode` file is used to communicate the current mode to the slide show service. 
 
 ### Running the Slide Show
 The `announcements-slideshow.service` service launches `announcements-slideshow.sh`, which launches `pqiv` to show slides.

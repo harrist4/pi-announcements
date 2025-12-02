@@ -20,7 +20,6 @@ TMP_DIR="$BASE_DIR/tmp"
 SRC_DIR="/srv/announcements-src"
 INSTALL_INFO="$BASE_DIR/INSTALL_INFO"
 
-DISPLAY_STATE_FILE="/tmp/announcements_display_state"
 SLIDES_MODE_FILE="/tmp/announcements_slides_mode"
 
 # Don't run this helper as root; it will sudo where needed.
@@ -97,6 +96,16 @@ do_test() {
   fi
 
   echo
+  echo "== Inbox =="
+  if [ -d "$INBOX_DIR" ]; then
+    inbox_count=$(find "$INBOX_DIR" -maxdepth 1 -type f ! -name '*.txt' 2>/dev/null | wc -l | tr -d ' ')
+    echo "  OK: $INBOX_DIR exists"
+    echo "  Non-text files (candidates for processing): $inbox_count"
+  else
+    echo "  FAIL: $INBOX_DIR is missing"
+  fi
+
+  echo
   echo "== Services =="
   for s in "${SERVICES[@]}"; do
     if systemctl is-enabled --quiet "$s.service" 2>/dev/null; then
@@ -111,6 +120,49 @@ do_test() {
     fi
     echo "  $s.service: $enabled, $active"
   done
+
+  echo
+  echo "== Samba =="
+
+  # smbd/nmbd status
+  for svc in smbd nmbd; do
+    if systemctl list-unit-files | grep -q "^$svc.service" 2>/dev/null; then
+      if systemctl is-active --quiet "$svc.service" 2>/dev/null; then
+        echo "  $svc.service: active"
+      else
+        echo "  $svc.service: inactive"
+      fi
+    fi
+  done
+
+  # List shares (excluding global)
+  SMB_CONF="/etc/samba/smb.conf"
+  if [ -f "$SMB_CONF" ]; then
+    echo
+    echo "  Shares defined in smb.conf:"
+    grep -E '^\[.*\]' "$SMB_CONF" | grep -v '\[global\]' | while read -r sec; do
+      share=$(echo "$sec" | tr -d '[]')
+
+      # Extract path= for the share
+      path=$(awk -v s="[$share]" '
+        $0==s {found=1; next}
+        /^\[/ && found {found=0}
+        found && $1=="path" {print $3; exit}
+      ' "$SMB_CONF")
+
+      if [ -n "$path" ]; then
+        if [ -d "$path" ]; then
+          echo "    $share → $path (OK)"
+        else
+          echo "    $share → $path (MISSING)"
+        fi
+      else
+        echo "    $share → (no path found)"
+      fi
+    done
+  else
+    echo "  FAIL: $SMB_CONF not found"
+  fi
 }
 
 do_version() {
@@ -176,7 +228,6 @@ Config:            $CONF_FILE
 Logs:              $LOG_DIR
 Temp:              $TMP_DIR
 
-Display state file:    $DISPLAY_STATE_FILE
 Slides mode file:      $SLIDES_MODE_FILE
 
 Source tree (scripts, VERSION, uninstall):
