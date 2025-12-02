@@ -21,23 +21,15 @@ The slideshow starts automatically once the services are running.
 
 A helper command is installed on the Raspberry Pi:
 
-```bash
-announcements
-```
+    announcements
 
-This command provides convenient management of the system services:
+It provides quick access to common actions such as checking status, starting or stopping
+services, viewing logs, and inspecting system paths. Running the command **with no
+arguments** shows the supported subcommands and useful file locations.
 
-- `announcements status` – show status of all announcement services  
-- `announcements start` – start all services  
-- `announcements stop` – stop all services  
-- `announcements restart` – restart all services  
-- `announcements logs` – show recent logs
+A small reminder is also added to `/etc/motd` during installation:
 
-Running `announcements` **with no arguments** displays the available subcommands and shows helpful paths such as the slide directories and config locations.
-
-A reminder line is added to `/etc/motd` on install:
-
-> Hint: control announcements with the "announcements" command.
+    Hint: control announcements with the "announcements" command.
 
 ## Features
 - Watches an upload folder for new PowerPoint, PDF, or image files
