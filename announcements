@@ -1,6 +1,6 @@
 #!/bin/bash
 # Helper for the Raspberry Pi Announcements Frame
-cmd=$(basename "$0")
+fn=$(basename "$0")
 
 SERVICES=(
   announcements-watcher
@@ -28,24 +28,33 @@ if [[ $EUID -eq 0 ]]; then
   exit 1
 fi
 
+RED=$(tput setaf 1)
+GREEN=$(tput setaf 2)
+RESET=$(tput sgr0)
+
 usage() {
   cat <<EOF
-Usage: $cmd {status|start|stop|restart|logs|test|version|summary|paths|off|help}
+Usage: $fn {status|services|smb|config|start|stop|restart|logs|summary|test|paths|version|off|help}
 
-  status    Show brief status of all announcements services
-  start     Start all announcements services
-  stop      Stop all announcements services
-  restart   Restart all announcements services
-  logs      Show recent logs for all announcements services
-  test      Run basic health checks on directories and services
-  version   Show installed version information (if available)
-  summary   Show a one-line summary of slides and service state
-  paths     Show key directories and state file locations
-  off       Force the slideshow into "black screen" mode
-  help      Show this help
+  status     Show brief runtime status (slides, counts, service activity)
+  services   Show detailed systemd service status
+  smb        Show Samba service/share status
+  config     Edit the config file using \$EDITOR or nano
+
+  start      Start all announcements services
+  stop       Stop all announcements services
+  restart    Restart all announcements services
+  logs       Show recent logs for all announcements services
+
+  summary    One-line summary of system state
+  test       Structural install health check
+  paths      Show key directories and state files
+  version    Show installed version info
+  off        Force “black screen” mode
+  help       Show this help
 
 Notes:
-  Use "$cmd paths" to see key directories and state files.
+  Use "$fn paths" to see key directories and state files.
   To uninstall, run: sudo /srv/announcements-src/uninstall.sh
 EOF
 }
@@ -59,11 +68,65 @@ do_services() {
 }
 
 do_status() {
+  echo "=== Announcements Status ==="
+
+  echo -n "Slides mode: "
+  [[ -f "$SLIDES_MODE_FILE" ]] && cat "$SLIDES_MODE_FILE" || echo "(auto)"
+  echo
+
+  live_count=$(find "$LIVE_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+  inbox_count=$(find "$INBOX_DIR" -maxdepth 1 -type f ! -name '*.txt' 2>/dev/null | wc -l | tr -d ' ')
+  tmp_count=$(find "$TMP_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+  echo "Live: $live_count    Inbox: $inbox_count    Temp: $tmp_count"
+  echo
+
+  echo "Services:"
+  for s in "${SERVICES[@]}"; do
+    if systemctl is-active --quiet "$s.service" 2>/dev/null; then
+      st="active"
+    else
+      st="inactive"
+    fi
+    [[ "$st" = active ]] && col=$GREEN || col=$RED
+    echo "  $s: ${col}$st${RESET}"
+  done
+}
+
+do_services_status() {
   for s in "${SERVICES[@]}"; do
     echo "=== $s.service ==="
-    sudo systemctl status "$s.service" --no-pager --lines=2 || true
+    sudo systemctl status "$s.service" --no-pager --lines=4 || true
     echo
   done
+}
+
+do_smb() {
+  echo "=== Samba ==="
+  if systemctl is-active --quiet smbd.service; then
+    echo "  smbd: ${GREEN}active${RESET}"
+  else
+    echo "  smbd: ${RED}inactive${RESET}"
+  fi
+  echo
+
+  echo "Shares:"
+  grep -E '^\[.*\]' /etc/samba/smb.conf | grep -v '\[global\]' |
+  while read -r sec; do
+    share=$(echo "$sec" | tr -d '[]')
+    path=$(awk -v s="[$share]" '
+      $0==s {found=1; next}
+      /^\[/ && found {found=0}
+      found && $1=="path" {print $3; exit}
+    ' /etc/samba/smb.conf)
+    [[ -z "$path" ]] && echo "  $share → (no path)" && continue
+    [[ -d "$path" ]] && echo "  $share → $path (OK)" || echo "  $share → $path (MISSING)"
+  done
+}
+
+do_config() {
+  editor="${EDITOR:-nano}"
+  command -v "$editor" >/dev/null 2>&1 || editor=nano
+  "$editor" "$CONF_FILE"
 }
 
 do_logs() {
@@ -76,91 +139,27 @@ do_logs() {
 }
 
 do_test() {
-  echo "== Directories =="
-  if [ -d "$BASE_DIR" ]; then
-    echo "  OK: $BASE_DIR exists"
-  else
-    echo "  FAIL: $BASE_DIR is missing"
-  fi
-
-  if [ -d "$LIVE_DIR" ]; then
-    echo "  OK: $LIVE_DIR exists"
-  else
-    echo "  FAIL: $LIVE_DIR is missing"
-  fi
-
-  if [ -f "$CONF_FILE" ]; then
-    echo "  OK: $CONF_FILE exists"
-  else
-    echo "  FAIL: $CONF_FILE is missing"
-  fi
+  echo "== Directory layout =="
+  for d in "$BASE_DIR" "$LIVE_DIR" "$INBOX_DIR" "$TMP_DIR"; do
+    [[ -d "$d" ]] && echo "  OK: $d" || echo "  FAIL: $d missing"
+  done
+  echo
+  echo "== Config =="
+  [[ -f "$CONF_FILE" ]] && echo "  OK: $CONF_FILE" || echo "  FAIL: config missing"
 
   echo
-  echo "== Inbox =="
-  if [ -d "$INBOX_DIR" ]; then
-    inbox_count=$(find "$INBOX_DIR" -maxdepth 1 -type f ! -name '*.txt' 2>/dev/null | wc -l | tr -d ' ')
-    echo "  OK: $INBOX_DIR exists"
-    echo "  Non-text files (candidates for processing): $inbox_count"
-  else
-    echo "  FAIL: $INBOX_DIR is missing"
-  fi
-
-  echo
-  echo "== Services =="
+  echo "== Service installation =="
   for s in "${SERVICES[@]}"; do
     if systemctl is-enabled --quiet "$s.service" 2>/dev/null; then
-      enabled="enabled"
+      echo "  $s.service: enabled"
     else
-      enabled="disabled"
+      echo "  $s.service: disabled"
     fi
-    if systemctl is-active --quiet "$s.service" 2>/dev/null; then
-      active="active"
-    else
-      active="inactive"
-    fi
-    echo "  $s.service: $enabled, $active"
   done
 
   echo
-  echo "== Samba =="
-
-  # smbd status only (nmbd is legacy / unused)
-  if systemctl list-unit-files | grep -q '^smbd.service' 2>/dev/null; then
-    if systemctl is-active --quiet smbd.service 2>/dev/null; then
-      echo "  smbd.service: active"
-    else
-      echo "  smbd.service: inactive"
-    fi
-  fi
-
-  # List shares (excluding global)
-  SMB_CONF="/etc/samba/smb.conf"
-  if [ -f "$SMB_CONF" ]; then
-    echo
-    echo "  Shares defined in smb.conf:"
-    grep -E '^\[.*\]' "$SMB_CONF" | grep -v '\[global\]' | while read -r sec; do
-      share=$(echo "$sec" | tr -d '[]')
-
-      # Extract path= for the share
-      path=$(awk -v s="[$share]" '
-        $0==s {found=1; next}
-        /^\[/ && found {found=0}
-        found && $1=="path" {print $3; exit}
-      ' "$SMB_CONF")
-
-      if [ -n "$path" ]; then
-        if [ -d "$path" ]; then
-          echo "    $share → $path (OK)"
-        else
-          echo "    $share → $path (MISSING)"
-        fi
-      else
-        echo "    $share → (no path found)"
-      fi
-    done
-  else
-    echo "  FAIL: $SMB_CONF not found"
-  fi
+  echo "== Samba shares =="
+  do_smb
 }
 
 do_version() {
@@ -241,13 +240,23 @@ do_off() {
   }
   echo "Restarting slideshow service..."
   sudo systemctl restart announcements-slideshow.service || true
-  echo "Done. The slideshow should switch to black on the next refresh."
+  echo "Done. Slideshow will switch to black on next refresh."
 }
 
 cmd="${1:-help}"
-shift || true
 
 case "$cmd" in
+  services)
+    do_services_status
+    ;;
+
+  smb)
+    do_smb
+    ;;
+
+  config)
+    do_config
+    ;;
   status)
     do_status
     ;;

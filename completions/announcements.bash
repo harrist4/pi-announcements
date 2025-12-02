@@ -2,13 +2,13 @@
 
 _announcements()
 {
-  local cur prev
+  local cur
   COMPREPLY=()
   cur="${COMP_WORDS[COMP_CWORD]}"
-  prev="${COMP_WORDS[COMP_CWORD-1]}"
 
+  # top-level commands
   if [[ $COMP_CWORD -eq 1 ]]; then
-    local opts="status start stop restart logs test version summary paths off help"
+    local opts="config help logs off paths services smb start status stop restart summary test version"
     COMPREPLY=( $(compgen -W "$opts" -- "$cur") )
   fi
 
