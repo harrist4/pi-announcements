@@ -1,5 +1,13 @@
 # Raspberry Pi Announcements Frame
 
+<p align="center">
+  <img src="assets/hero.jpg" alt="Demonstration of the Announcements Frame" width="600">
+</p>
+
+<p align="center"><em>
+When your Raspberry Pi finally does its job and you instantly become the IT department’s entire marketing team.
+</em></p>
+
 A lightweight Raspberry Pi system that converts PowerPoint slides into images and displays them full-screen on a schedule. Designed for church foyers, hallway displays, and any always-on announcement screen.
 
 ## Installation (one-liner)

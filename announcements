@@ -124,16 +124,14 @@ do_test() {
   echo
   echo "== Samba =="
 
-  # smbd/nmbd status
-  for svc in smbd nmbd; do
-    if systemctl list-unit-files | grep -q "^$svc.service" 2>/dev/null; then
-      if systemctl is-active --quiet "$svc.service" 2>/dev/null; then
-        echo "  $svc.service: active"
-      else
-        echo "  $svc.service: inactive"
-      fi
+  # smbd status only (nmbd is legacy / unused)
+  if systemctl list-unit-files | grep -q '^smbd.service' 2>/dev/null; then
+    if systemctl is-active --quiet smbd.service 2>/dev/null; then
+      echo "  smbd.service: active"
+    else
+      echo "  smbd.service: inactive"
     fi
-  done
+  fi
 
   # List shares (excluding global)
   SMB_CONF="/etc/samba/smb.conf"
