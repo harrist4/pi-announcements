@@ -21,8 +21,7 @@ Group=${REAL_USER}
 # Force X11 connection to the primary desktop session.
 # (Pi OS normally auto-logs into DISPLAY :0.)
 Environment=DISPLAY=:0
-
-Environment=DISPLAY=:0
+Environment=NO_AT_BRIDGE=1
 
 # pqiv inherits DISPLAY and any config overrides from announcements.conf via the script
 ExecStart=/srv/announcements/announcements-slideshow.sh
