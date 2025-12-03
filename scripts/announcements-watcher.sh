@@ -3,15 +3,17 @@
 # announcements-watcher.sh
 #
 # Purpose:
-#   Long-running watcher for the announcements "inbox" directory.
-#   - Detects when files in the inbox change (new/updated/removed).
-#   - Waits until the inbox has been quiet for QUIET_SECONDS.
-#   - Runs convert_all.sh once per quiet period to rebuild slides.
+#   Long-running watcher for announcements directories.
+#   - Watches the "live" directory for changes and restarts the slideshow
+#     after QUIET_SECONDS of inactivity.
+#   - Watches the "inbox" directory for changes and, after QUIET_SECONDS
+#     of inactivity, runs convert_all.sh to rebuild slides.
 #
 # Configuration:
 #   Reads /srv/announcements/config/announcements.conf
 #     inbox_dir            = /srv/announcements/inbox
-#     quiet_seconds        = 60        # how long inbox must stay idle
+#     live_dir             = /srv/announcements/live
+#     quiet_seconds        = 60        # how long a dir must stay idle
 #     watch_poll_interval  = 10        # how often to rescan for changes
 #
 # Marker files in the inbox:
@@ -27,6 +29,7 @@ CONFIG="/srv/announcements/config/announcements.conf"
 BASE="/srv/announcements"
 INBOX="$BASE/inbox"
 SCRIPT="$BASE/convert_all.sh"
+LIVE="$BASE/live"
 
 # Defaults
 QUIET_SECONDS=60
@@ -50,6 +53,11 @@ get_conf_value() {
 # Override INBOX from config if present
 if val=$(get_conf_value "inbox_dir" 2>/dev/null); then
   [ -n "$val" ] && INBOX="$val"
+fi
+
+# Override LIVE from config if present
+if val=$(get_conf_value "live_dir" 2>/dev/null); then
+  [ -n "$val" ] && LIVE="$val"
 fi
 
 # Override QUIET_SECONDS if configured
@@ -87,22 +95,63 @@ fi
 # --- End crash recovery ---
 
 echo "Watching $INBOX (quiet=${QUIET_SECONDS}s, poll=${POLL_INTERVAL}s)..."
+echo "Also watching $LIVE for direct slide updates..."
 
 last_change=0
 prev_hash=""
+
+live_prev_hash=""
+live_last_change=0
+live_pending_restart=0
 
 while true; do
   sleep "$POLL_INTERVAL"
   now=$(date +%s)
 
+  # $LIVE content change detection
+  if [ -d "$LIVE" ]; then
+    # Build a hash of the current live contents.
+    live_hash=$(find "$LIVE" -mindepth 1 -maxdepth 1 \
+      -type f \
+      -printf '%P %T@\n' 2>/dev/null | sort | sha1sum || echo "none")
+
+    # First-time initialization: just seed the hash, no pending action
+    if [ -z "$live_prev_hash" ]; then
+      live_prev_hash="$live_hash"
+
+    # Subsequent changes: detect real modifications
+    elif [ "$live_hash" != "$live_prev_hash" ]; then
+      echo "Live dir content has changed; waiting for it to settle..."
+      live_prev_hash="$live_hash"
+      live_last_change="$now"
+      live_pending_restart=1
+    fi
+
+    # If we *know* something changed and it's been quiet long enough, restart pqiv
+    if (( live_pending_restart == 1 && now - live_last_change >= QUIET_SECONDS )); then
+      if find "$LIVE" -mindepth 1 -maxdepth 1 -type f | grep -q .; then
+        echo "Live dir quiet for ${QUIET_SECONDS}s; restarting slideshow..."
+        # Restart slideshow:
+        #   This script runs as the non-root service user ($SERVICE_USER), but
+        #   restarting announcements-slideshow.service requires root.
+        #   Therefore we invoke systemctl through sudo here.
+        sudo systemctl restart announcements-slideshow.service \
+          || echo "Warning: failed to restart slideshow service."
+      fi
+      live_pending_restart=0
+      continue
+    fi
+  fi
+
   # Build a hash of the current inbox contents (excluding our .txt marker files).
   # We hash "filename + mtime" so any add/remove/modify will change the hash.
   # When the hash stops changing for QUIET_SECONDS, we treat the inbox as "stable".
   current_hash=$(find "$INBOX" -mindepth 1 -maxdepth 1 \
-  ! -name "*.txt" \
-  -printf '%P %T@\n' 2>/dev/null | sort | sha1sum || echo "none")
+    ! -name "*.txt" \
+    -printf '%P %T@\n' 2>/dev/null | sort | sha1sum || echo "none")
 
   if [ "$current_hash" != "$prev_hash" ]; then
+    echo "Inbox dir content has changed; waiting for it to settle..."
     prev_hash="$current_hash"
     last_change="$now"
   fi
@@ -114,7 +163,7 @@ while true; do
 
   # Nothing to do if inbox is empty
   if ! find "$INBOX" -mindepth 1 -maxdepth 1 \
-       ! -name "*.txt" | grep -q .; then
+      ! -name "*.txt" 2>/dev/null | grep -q .; then
     continue
   fi
 
@@ -123,7 +172,7 @@ while true; do
     continue
   fi
 
-  echo "Inbox quiet for ${QUIET_SECONDS}s, starting conversion..."
+  echo "Inbox quiet for ${QUIET_SECONDS}s; starting conversion..."
 
   # Mark the start of a conversion run:
   #   - remove any old _READY.txt status
@@ -132,17 +181,9 @@ while true; do
   echo "Processing started at $(date)" > "$INBOX/_PROCESSING.txt"
 
   # Run the converter. On success, write a human-readable status line
-  # to _READY.txt and restart the slideshow so new slides are picked up.
+  # to _READY.txt. The live watcher will restart the slideshow if output changes.
   if "$SCRIPT"; then
     echo "Drop folder processed successfully at $(date)." > "$INBOX/_READY.txt"
-    # Restart slideshow:
-    #   This script runs as the non-root service user ($SERVICE_USER), but
-    #   restarting announcements-slideshow.service requires root.
-    #   The installer adds a sudoers entry allowing this exact command:
-    #     $SERVICE_USER ALL=(root) NOPASSWD: systemctl restart announcements-slideshow.service
-    #   Therefore we invoke systemctl through sudo here.
-    sudo systemctl restart announcements-slideshow.service \
-      || echo "Warning: failed to restart slideshow service."
   else
     echo "ERROR during processing at $(date)." > "$INBOX/_READY.txt"
     echo "convert_all.sh failed (see logs)." >&2

@@ -45,6 +45,7 @@ A small reminder is also added to `/etc/motd` during installation:
 - Runs a fullscreen slideshow using **pqiv** with basic controls
 - Programmable schedule
 - Off schedule, choose between blank slide or HDMI off
+- Automatically reloads slides when files in the live folder change
 - Two Samba shares:
   - **announcements_inbox** (upload PPTX/images)
   - **announcements_live** (current live slides)
@@ -119,15 +120,20 @@ It is always better to manually export PowerPoint to PDF and then upload the PDF
 The `announcements-watcher.service` service launches `announcements-watcher.sh`, which runs an infinite loop.
 
 Within that loop:
-* `announcements-watcher.sh` checks for fresh files in the inbox, calculating a checksum of the filenames, ignoring any text files.
-* When a different checksum is calculated, the time is noted.
-* If no relevant files are present the loop continues.
-* If the "last change" time exceeds the QUIET_SECONDS setting then it's time to process the files
-  * Remove the `_READY.txt` file
-  * Create the `_PROCESSING.txt` file with timestamp
-  * Run `convert_all.sh`
-  * Restart the `announcements-slideshow.service` service to pick up the changed slides
-  * Create the `_READY.txt` file with results
+* It monitors both the inbox directory and the live directory.
+* For the inbox:
+  * `announcements-watcher.sh` checks for fresh files in the inbox, calculating a checksum of the filenames, ignoring any text files.
+  * When a different checksum is calculated, the time is noted.
+  * If no relevant files are present the loop continues.
+  * If the "last change" time exceeds the QUIET_SECONDS setting then it's time to process the files:
+    * Remove the `_READY.txt` file
+    * Create the `_PROCESSING.txt` file with timestamp
+    * Run `convert_all.sh`
+    * Create the `_READY.txt` file with results
+* For the live directory:
+  * Checksums are calculated each loop.
+  * When changes are detected, the time is noted.
+  * Once changes remain stable for QUIET_SECONDS, the slideshow is restarted automatically.
 
 ### Scheduling the Display
 The `announcements-display.service` service launches `announcements-display.sh`, which runs an infinite loop.
