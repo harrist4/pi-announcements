@@ -18,7 +18,8 @@ CHURCH ANNOUNCEMENTS DROP FOLDER
 3. Marker files
    - _READY.txt means this folder is idle and ready for new content.
    - _PROCESSING.txt means a conversion run is active.
-   - Do not edit or remove these files.
 
 If the TV display looks incorrect, empty this folder and re-upload your slides.
 If issues continue, please contact the tech team.
+
+Image files do not need conversion--you can upload them directly to the "announcements_live" share.

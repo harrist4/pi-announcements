@@ -39,6 +39,15 @@ A small reminder is also added to `/etc/motd` during installation:
 
     Hint: control announcements with the "announcements" command.
 
+## Remote Access
+By itself this application does not provide remote access.
+
+One convenient way to manage this tool remotely is to enable Raspberry Pi Connect.
+That tool allows you to open a shell or a GUI screen from anywhere.
+
+Raspberry Pi Connect does not support file sharing, so to upload slides you can
+use a tool like `magic wormhole`.
+
 ## Features
 - Watches an upload folder for new PowerPoint, PDF, or image files
 - Converts PPTX → PDF → PNG via LibreOffice + ImageMagick
