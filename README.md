@@ -10,6 +10,9 @@ When your Raspberry Pi finally does its job and you instantly become the IT depa
 
 A lightweight Raspberry Pi system that converts PowerPoint slides into images and displays them full-screen on a schedule. Designed for church foyers, hallway displays, and any always-on announcement screen.
 
+### Security note
+This device is only as secure as the network you put it on. It assumes a trusted local environment. And of course, keep the Pi and SD card out of reach—otherwise some enterprising teenager might start posting announcements of their own!
+
 ## Installation (one-liner)
 On a fresh Raspberry Pi OS **Desktop**, open a terminal and run:
 ```bash
