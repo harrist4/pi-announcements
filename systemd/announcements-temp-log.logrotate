@@ -1,0 +1,18 @@
+# announcements-temp-log.logrotate
+#
+# Log rotation for Announcements CPU temperature logging
+#
+# - Rotates CSV temperature log weekly
+# - Keeps ~6 months of history
+# - Uses copytruncate because the writer is a oneshot service
+# - Compression delayed by one cycle for readability
+
+/srv/announcements/logs/pi-temp/temps.csv {
+  weekly
+  rotate 26
+  compress
+  delaycompress
+  missingok
+  notifempty
+  copytruncate
+}

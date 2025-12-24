@@ -141,6 +141,7 @@ groom_image() {
 
   if $CENTER_IMAGES; then
     convert "$src" \
+      -auto-orient \
       -resize "${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}>" \
       -background "$BACKGROUND_COLOR" \
       -gravity center \
@@ -149,6 +150,7 @@ groom_image() {
       "$dst"
   else
     convert "$src" \
+      -auto-orient \
       -resize "${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}>" \
       -quality 95 \
       "$dst"

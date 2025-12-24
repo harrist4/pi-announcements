@@ -127,6 +127,10 @@ It is always better to manually export PowerPoint to PDF and then upload the PDF
 - `announcements-display.service`  
 - `announcements-status.service`
 
+Note: This list includes only long-running operator-managed services.
+Helper units used by background features (such as temperature monitoring timers)
+are intentionally excluded.
+
 ## Detailed Description
 ### Updating Announcements
 The `announcements-watcher.service` service launches `announcements-watcher.sh`, which runs an infinite loop.
@@ -164,3 +168,19 @@ The `announcements-status.service` service launches `announcements-status.sh`, w
 This service checks for subdirectories under `/srv/announcements/tmp` and if there is a scratch directory present its contents are written to a `_STATUS_<timestamp>.txt` file in the inbox (next to `_READY.txt` and `_PROCESSING.txt`).
 
 The timestamp avoids Samba caching confusion and allows someone to check progress.
+
+## CPU Temperature Monitoring
+
+The announcements appliance is typically left running unattended in environments that may be hot or cold, such as a church during the week. For this reason, background CPU temperature logging is included for diagnostics.
+
+- Logged every 5 minutes via a systemd timer
+- Stored as CSV under:
+  `/srv/announcements/logs/pi-temp/temps.csv`
+- Managed by:
+  - `announcements-temp-log.timer`
+  - `announcements-temp-log.service` (oneshot, timer-driven)
+- Log rotation is handled via `logrotate`
+
+Temperature information is reported informationally in `announcements status`.  
+This timer-driven job is intentionally **not** start/stop controlled by the
+`announcements` helper, which manages only long-running services.

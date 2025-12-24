@@ -60,18 +60,25 @@ systemctl stop announcements-watcher.service 2>/dev/null || true
 systemctl stop announcements-slideshow.service 2>/dev/null || true
 systemctl stop announcements-display.service 2>/dev/null || true
 systemctl stop announcements-status.service 2>/dev/null || true
+systemctl stop announcements-temp-log.timer 2>/dev/null || true
 
 echo "==> Disabling services..."
 systemctl disable announcements-watcher.service 2>/dev/null || true
 systemctl disable announcements-slideshow.service 2>/dev/null || true
 systemctl disable announcements-display.service 2>/dev/null || true
 systemctl disable announcements-status.service 2>/dev/null || true
+systemctl disable announcements-temp-log.timer 2>/dev/null || true
+
+echo "==> Removing logrotate config..."
+rm -f /etc/logrotate.d/announcements-temp-log
 
 echo "==> Removing systemd unit files..."
 rm -f /etc/systemd/system/announcements-watcher.service
 rm -f /etc/systemd/system/announcements-slideshow.service
 rm -f /etc/systemd/system/announcements-display.service
 rm -f /etc/systemd/system/announcements-status.service
+rm -f /etc/systemd/system/announcements-temp-log.service
+rm -f /etc/systemd/system/announcements-temp-log.timer
 
 systemctl daemon-reload
 

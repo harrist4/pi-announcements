@@ -1,0 +1,26 @@
+# announcements-temp-log.timer
+#
+# Purpose:
+#   Periodically trigger the announcements-temp-log.service to record
+#   CPU temperature at a fixed cadence.
+#
+# Behavior:
+#   - First run occurs shortly after boot
+#   - Subsequent runs occur every 5 minutes
+#   - Uses Persistent=true so missed runs are caught up after downtime
+#
+# Notes:
+#   - Cadence chosen to balance trend visibility and log size
+#   - AccuracySec allows systemd to coalesce wakeups if needed
+
+[Unit]
+Description=Run announcements temperature logger every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

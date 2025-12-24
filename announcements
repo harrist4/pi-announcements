@@ -1,7 +1,58 @@
 #!/bin/bash
-# Helper for the Raspberry Pi Announcements Frame
+#
+# announcements
+#
+# Helper command for the Raspberry Pi Announcements Frame appliance.
+#
+# Purpose:
+#   Provide a single, user-friendly control surface for monitoring and
+#   operating the announcements system without requiring direct systemd
+#   interaction.
+#
+# Responsibilities:
+#   - Report overall runtime status (slides, counts, temperatures)
+#   - Start, stop, restart long-running announcements services
+#   - Display detailed systemd service and log information
+#   - Expose common operational tasks (off mode, config editing, health checks)
+#
+# Scope:
+#   This helper manages only long-running announcements services:
+#     - announcements-watcher
+#     - announcements-slideshow
+#     - announcements-display
+#     - announcements-status
+#
+#   Infrastructure tasks implemented as timer-driven oneshot jobs
+#   (e.g. CPU temperature logging) are intentionally excluded from
+#   start/stop control and are reported informationally only.
+#
+# Design notes:
+#   - The helper is not intended to be run as root; it will sudo individual
+#     commands as needed.
+#   - Service management is explicit and conservative to avoid unintended
+#     disruption of background or scheduled tasks.
+#   - This script is part of an appliance-style system and favors clarity
+#     and predictability over flexibility.
+#
+# Usage:
+#   announcements help
+#
 fn=$(basename "$0")
 
+# SERVICES lists the long-running announcements components that this helper
+# manages directly (status/start/stop/restart).
+#
+# IMPORTANT:
+#   Timer-driven oneshot jobs (e.g. announcements-temp-log.service) are
+#   intentionally excluded from this list.
+#
+#   Those jobs are infrastructure tasks managed by systemd timers, not
+#   interactive services. Including them here would be misleading, since:
+#     - they are normally inactive when healthy
+#     - start/stop semantics apply to the *timer*, not the service
+#
+#   Temperature logging is therefore reported informationally in `status`,
+#   but is not controlled via `announcements start|stop`.
 SERVICES=(
   announcements-watcher
   announcements-slideshow
@@ -95,6 +146,42 @@ do_status() {
     [[ "$st" = active ]] && col=$GREEN || col=$RED
     echo "  $s: ${col}$st${RESET}"
   done
+  echo
+  echo "CPU Temperature — good below 176°F (80°C)"
+
+  TEMP_LOG="$LOG_DIR/pi-temp/temps.csv"
+
+  if [[ ! -f "$TEMP_LOG" ]]; then
+    echo "  No temperature data"
+    return
+  fi
+
+  # Current temp (last row)
+  current_f=$(awk -F, 'NR>1 {v=$3} END{print v}' "$TEMP_LOG")
+  [[ -n "$current_f" ]] && echo "  Current: ${current_f}°F"
+
+  report_max() {
+    local label="$1"
+    local since="$2"
+
+    awk -F, -v since="$since" -v label="$label" '
+      NR>1 && $1 >= since {
+        if ($3 > max) { max = $3; ts = $1 }
+      }
+      END {
+        if (max == "") {
+          printf "  %s: no data\n", label
+        } else {
+          cmd = "date -d \"" ts "\" \"+at %-I:%M%P %Z on %a, %b %-d\""
+          cmd | getline pretty
+          close(cmd)
+          printf "  %s max: %.1f°F %s\n", label, max, pretty
+        }
+      }' "$TEMP_LOG"
+  }
+
+  report_max "Last 24h" "$(date -d '24 hours ago' -Is)"
+  report_max "Last 7d " "$(date -d '7 days ago' -Is)"
 }
 
 do_services_status() {

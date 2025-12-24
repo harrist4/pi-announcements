@@ -115,6 +115,7 @@ install -m 0755 "$FRAME_DIR/scripts/announcements-watcher.sh"      "$BASE_DIR/an
 install -m 0755 "$FRAME_DIR/scripts/announcements-slideshow.sh"  "$BASE_DIR/announcements-slideshow.sh"
 install -m 0755 "$FRAME_DIR/scripts/announcements-display.sh" "$BASE_DIR/announcements-display.sh"
 install -m 0755 "$FRAME_DIR/scripts/announcements-status.sh"   "$BASE_DIR/announcements-status.sh"
+install -m 0755 "$FRAME_DIR/scripts/announcements-temp-log.sh" "$BASE_DIR/announcements-temp-log.sh"
 
 echo "==> Installing announcements helper command..."
 if [ -f "$FRAME_DIR/announcements" ]; then
@@ -155,6 +156,8 @@ envsubst < "$FRAME_DIR/systemd/announcements-slideshow.service.template" \
 
 install -m 0644 "$FRAME_DIR/systemd/announcements-display.service" /etc/systemd/system/
 install -m 0644 "$FRAME_DIR/systemd/announcements-status.service"  /etc/systemd/system/
+install -m 0644 "$FRAME_DIR/systemd/announcements-temp-log.service" /etc/systemd/system/
+install -m 0644 "$FRAME_DIR/systemd/announcements-temp-log.timer"   /etc/systemd/system/
 
 echo "==> Reloading systemd..."
 systemctl daemon-reload
@@ -164,12 +167,21 @@ systemctl enable announcements-watcher.service
 systemctl enable announcements-slideshow.service
 systemctl enable announcements-display.service
 systemctl enable announcements-status.service
+systemctl enable announcements-temp-log.timer
 
 echo "==> Starting services..."
 systemctl start announcements-watcher.service
 systemctl start announcements-slideshow.service
 systemctl start announcements-display.service
 systemctl start announcements-status.service
+systemctl start announcements-temp-log.timer
+
+# Seed the temperature logger once at install time.
+# This oneshot service is normally triggered only by its timer, but on a fresh
+# install there has been no prior run, so the timer has no reference point yet.
+# Starting the service once ensures the first data point is written immediately
+# and establishes the baseline for subsequent timer-driven runs.
+systemctl start announcements-temp-log.service
 
 echo "==> Setting Samba password..."
 echo -e "$SMB_PASS\n$SMB_PASS" | smbpasswd -a -s "$REAL_USER"
@@ -228,6 +240,10 @@ EOF
 
 echo "==> Restarting Samba..."
 systemctl restart smbd nmbd 2>/dev/null || systemctl restart smbd || true
+
+echo "==> Installing logrotate config for temperature logging..."
+install -m 0644 "$FRAME_DIR/systemd/announcements-temp-log.logrotate" \
+  /etc/logrotate.d/announcements-temp-log
 
 # --- MOTD enhancement ---------------------------------------------------------
 MOTD_MAIN="/etc/motd"

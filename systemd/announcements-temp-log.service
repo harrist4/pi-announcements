@@ -1,0 +1,22 @@
+# announcements-temp-log.service
+#
+# Purpose:
+#   One-shot systemd service that records the Raspberry Pi CPU temperature
+#   into the Announcements application log directory.
+#
+# Behavior:
+#   - Reads CPU temperature from /sys/class/thermal/thermal_zone0/temp
+#   - Appends a single CSV row (timestamp, °C, °F)
+#   - Intended to be triggered by a systemd timer, not run continuously
+#
+# Ownership / Scope:
+#   - Part of the Announcements Frame appliance
+#   - Logging path is under /srv/announcements/logs
+#   - Runs as root for reliable access to thermal data
+
+[Unit]
+Description=Announcements CPU temperature logger
+
+[Service]
+Type=oneshot
+ExecStart=/srv/announcements/announcements-temp-log.sh
