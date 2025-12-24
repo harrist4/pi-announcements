@@ -96,6 +96,16 @@ echo "==> Creating directory structure..."
 mkdir -p "$BASE_DIR"/{inbox,live,off,config,logs,tmp}
 chown -R "$OWNER:$GROUP" "$BASE_DIR"
 
+echo "==> Creating home directory symlinks..."
+HOME_DIR="/home/$OWNER"
+
+ln -sfn "$BASE_DIR/inbox" "$HOME_DIR/announcements-inbox"
+ln -sfn "$BASE_DIR/live"  "$HOME_DIR/announcements-live"
+
+chown -h "$OWNER:$GROUP" \
+  "$HOME_DIR/announcements-inbox" \
+  "$HOME_DIR/announcements-live"
+
 echo "==> Creating initial 'installation complete' slide..."
 INSTALL_SLIDE="$BASE_DIR/live/installation_complete.png"
 if [ ! -f "$INSTALL_SLIDE" ]; then

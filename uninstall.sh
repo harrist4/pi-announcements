@@ -88,6 +88,10 @@ rm -f /usr/local/bin/announcements
 echo "==> Removing bash completion for announcements..."
 rm -f /etc/bash_completion.d/announcements
 
+echo "==> Removing home directory symlinks..."
+rm -f "/home/$OWNER/announcements-inbox"
+rm -f "/home/$OWNER/announcements-live"
+
 echo "==> Removing $BASE..."
 rm -rf "$BASE"
 

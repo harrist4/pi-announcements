@@ -4,6 +4,7 @@
 - Display current, 24-hour max, and 7-day max CPU temperature in `announcements status`
 - Correctly auto-orient phone images during conversion using EXIF metadata
 - Clarified service vs timer responsibilities in documentation and helper scripts
+- Added symlinks to inbox and live directories
 
 ## 2025-12-02
 - Added "config" to announcements helper command
